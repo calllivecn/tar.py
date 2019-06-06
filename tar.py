@@ -1,4 +1,4 @@
-#!/usr/bin/env py3
+#!/usr/bin/env python3
 #coding=utf-8
 # date 2019-03-22 19:40:08
 # author calllivecn <c-all@qq.com>
@@ -27,7 +27,7 @@ Description='''类似 GNU tar 的工具。
 parse=argparse.ArgumentParser(
 #description='%(prog)s [option...] [FILE]...',
 usage=Description,
-epilog="author: calllivecn <c-all@com> ，https://github.com/calllivecn/mytools"
+epilog="author: calllivecn <c-all@com> ，https://github.com/calllivecn/tar.py"
 )
 
 
