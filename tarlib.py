@@ -9,7 +9,7 @@ import sys
 import stat
 import logging
 from struct import pack, unpack, pack_into, unpack_from, Struct
-import shutil
+from shutil import copyfileobj
 
 #--------------------------------------------------------
 # Init
@@ -210,36 +210,25 @@ def fillto512(data):
 
     return data
 
-
-def copyfileobj(src, dst, length=None, exception=OSError, bufsize=None):
-    """Copy length bytes from fileobj src to fileobj dst.
-       If length is None, copy the entire content.
-    """
-    bufsize = bufsize or 16 * 1024
-    if length == 0:
-        return
-    if length is None:
-        shutil.copyfileobj(src, dst, bufsize)
-        return
-
-    blocks, remainder = divmod(length, bufsize)
-    for b in range(blocks):
-        buf = src.read(bufsize)
-        if len(buf) < bufsize:
-            raise exception("unexpected end of data")
-        dst.write(buf)
-
-    if remainder != 0:
-        buf = src.read(remainder)
-        if len(buf) < remainder:
-            raise exception("unexpected end of data")
-        dst.write(buf)
-    return
-
-
 class TarInfo:
     """
     tar file detail info
+
+    创建tar文件： 
+    tar = TarInfo(tarfileobj)
+    tar.addfile("filename") 
+        .
+        .
+        .
+    tar.addfile("more")
+    tar.close()
+
+
+    解压tar文件：
+    tar = TarInfo(tarfileobj)
+    tar.extrace2file("arcname", "dest") | tar.extrace2stream("arcname", streamobj)
+    
+    tar.close()
     """
 
     #__slots__ = ("path", "name", "linkpath", "mode", "uid", "gid", "size", "atime", "mtime",
@@ -266,12 +255,12 @@ class TarInfo:
 
         self.pax_header = {}
 
+        # ustar 512 fill data size
+        self.fillsize = 0
+
         if filename:
             self.__get_file_metadata()
 
-
-        # ustar 512 fill data size
-        self.fillsize = 0
 
     #----------------------------------------------------
     # 私有函数 begin
@@ -335,7 +324,7 @@ class TarInfo:
         ustar[0:len(pax_ext_header)] = pax_ext_header
 
         # mode : 0000644\0 
-        ustar[100:108] = bytes("{:0>7o}".format(mode), "ascii") + NUL
+        ustar[100:108] = bytes("{:0>7o}".format(mode & 0o7777), "ascii") + NUL
 
         # size : 这里是指拓展头的大小
         ustar[124:136] = bytes("{:0>11o}".format(size), "ascii") + NUL
@@ -411,7 +400,7 @@ class TarInfo:
             self.pax_header["linkpath"] = self.linkpath
 
         elif stat.S_ISCHR(st_mode):
-            typeflag = CHRTYPE
+            self.typeflag = CHRTYPE
 
         elif stat.S_ISBLK(st_mode):
             self.typeflag = BLKTYPE
@@ -444,7 +433,7 @@ class TarInfo:
             self.pax_header["uname"] = self.uname
 
         if GRP:
-            self.gname = grp.getgrgid(fstat.st_uid).gr_name
+            self.gname = grp.getgrgid(fstat.st_gid).gr_name
             self.pax_header["gname"] = self.gname
 
         self.atime = fstat.st_atime
@@ -461,8 +450,8 @@ class TarInfo:
 
 
 
-
 def test():
+    logger.setLevel(logging.DEBUG)
     
     out_tar = open(sys.argv[1], "wb")
 
@@ -472,12 +461,15 @@ def test():
         
         out_tar.write(header)
 
+        logger.debug("{} :typeflag: {}".format(tarinfo.realpath, tarinfo.typeflag))
+
         if tarinfo.typeflag in REGULAR_TYPES:
             with open(f, "rb") as fp:
                 copyfileobj(fp, out_tar)
 
             if tarinfo.fillsize != 0:
-                out_tar.write(tarinfo.fillsize)
+                logger.debug("tarinfol.fillsize: {}".format(tarinfo.fillsize))
+                out_tar.write(bytes(tarinfo.fillsize))
 
 
     out_tar.write(bytes(BLOCKSIZE * 2))
