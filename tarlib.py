@@ -27,8 +27,6 @@ except ModuleNotFoundError:
     GRP = False
 
 
-
-
 logger = logging.getLogger()
 stream = logging.StreamHandler(sys.stderr)
 fmt = logging.Formatter("%(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
@@ -78,8 +76,7 @@ SUPPORTED_TYPES = (REGTYPE, AREGTYPE, LNKTYPE,
                    CONTTYPE, CHRTYPE, BLKTYPE)
 
 # File types that will be treated as a regular file.
-REGULAR_TYPES = (REGTYPE, AREGTYPE,
-                 CONTTYPE)
+REGULAR_TYPES = (REGTYPE, AREGTYPE, CONTTYPE)
 
 
 # Fields from a pax header that override a TarInfo attribute.
@@ -210,7 +207,7 @@ def fillto512(data):
 
     return data
 
-class TarInfo:
+class Tar:
     """
     tar file detail info
 
@@ -226,7 +223,7 @@ class TarInfo:
 
     解压tar文件：
     tar = TarInfo(tarfileobj)
-    tar.extrace2file("arcname", "dest") | tar.extrace2stream("arcname", streamobj)
+    tar.extrace("arcname", "dest_dir")
     
     tar.close()
     """
@@ -236,10 +233,13 @@ class TarInfo:
     #             "devmajor", "devminor")
     #__all__ = []
 
-    def __init__(self, filename = ""):
-        self.realpath = filename
-        self.path = filename
-        self.name = filename
+    def __init__(self, tarfileobj = None):
+
+        self.tarfileobj = tarfileobj
+
+        self.realpath = ""
+        self.path = ""
+        self.name = ""
         self.linkpath = ""
         self.mode = 0o644
         self.uid = 0
@@ -248,25 +248,67 @@ class TarInfo:
         self.atime = 0.0
         self.mtime = 0.0
         self.typeflag = b"0"
-        self.uname = None
-        self.gname = None
-        self.devmajor = bytes(8)
-        self.devminor = bytes(8)
+        self.uname = 0
+        self.gname = 0
+        self.devmajor = NUL * 8
+        self.devminor = NUL * 8
 
         self.pax_header = {}
 
         # ustar 512 fill data size
         self.fillsize = 0
 
-        if filename:
-            self.__get_file_metadata()
+
+    def addfile(self, filename):
+
+        self.realpath = filename
+
+        self.__get_file_metadata()
+
+        header = self.__make_header()
+        self.tarfileobj.write(header)
+
+        
+        if self.typeflag in REGULAR_TYPES:
+            with open(self.realpath, "rb") as fp:
+                copyfileobj(fp, self.tarfileobj)
+
+        if self.fillsize != 0:
+            logger.debug("tarinfol.fillsize: {}".format(self.fillsize))
+            self.tarfileobj.write(bytes(self.fillsize))
+
+
+        if os.path.isdir(self.realpath):
+            
+            for r, f, d in os.walk(self.realpath):
+                
+                for fs in d + f:
+
+                    self.realpath = os.path.join(r,fs)
+
+                    self.__get_file_metadata()
+                    header = self.__make_header()
+                    self.tarfileobj.write(header)
+        
+                    if self.typeflag in REGULAR_TYPES:
+                        with open(self.realpath, "rb") as fp:
+                            copyfileobj(fp, self.tarfileobj)
+
+                    if self.fillsize != 0:
+                        logger.debug("tarinfol.fillsize: {}".format(self.fillsize))
+                        self.tarfileobj.write(bytes(self.fillsize))
+
+
+
+    def close(self):
+        self.tarfileobj.write(bytes(BLOCKSIZE * 2))
 
 
     #----------------------------------------------------
     # 私有函数 begin
     #----------------------------------------------------
 
-    def make_header(self):
+    def __make_header(self):
         ext_header = self.__make_pax_header()
         ustar_header = self.__make_ustar_header(self.typeflag, self.mode, 0)
 
@@ -357,6 +399,28 @@ class TarInfo:
 
 
     def __get_file_metadata(self):
+
+        self.path = ""
+        self.name = ""
+        self.linkpath = ""
+        self.mode = 0o644
+        self.uid = 0
+        self.gid = 0
+        self.size = 0 
+        self.atime = 0.0
+        self.mtime = 0.0
+        self.typeflag = b"0"
+        self.uname = 0
+        self.gname = 0
+        self.devmajor = NUL * 8
+        self.devminor = NUL * 8
+
+        self.pax_header = {}
+
+        # ustar 512 fill data size
+        self.fillsize = 0
+
+
         tmp = self.realpath.replace(os.sep, "/")
         self.path = tmp.lstrip("/")
         self.name = self.path
@@ -370,9 +434,7 @@ class TarInfo:
 
         self.mode = fstat.st_mode
 
-        st_mode = fstat.st_mode
-
-        if stat.S_ISREG(st_mode):
+        if stat.S_ISREG(self.mode):
             """
             先不支持硬链接文件，把硬链接当普通文件处理。
             """
@@ -388,22 +450,28 @@ class TarInfo:
 
             self.typeflag = REGTYPE
 
-        elif stat.S_ISDIR(st_mode):
+        elif stat.S_ISDIR(self.mode):
             self.typeflag = DIRTYPE
+            if not self.realpath.endswith("/"):
+                self.realpath += "/"
 
-        elif stat.S_ISFIFO(st_mode):
+        elif stat.S_ISFIFO(self.mode):
             self.typeflag = FIFOTYPE
 
-        elif stat.S_ISLNK(st_mode):
+        elif stat.S_ISLNK(self.mode):
             self.typeflag = SYMTYPE
             self.linkpath = os.readlink(self.realpath)
             self.pax_header["linkpath"] = self.linkpath
 
-        elif stat.S_ISCHR(st_mode):
+        elif stat.S_ISCHR(self.mode):
             self.typeflag = CHRTYPE
+            self.major = os.major(fstat.st_dev)
+            self.minor = os.minor(fstat.st_dev)
 
-        elif stat.S_ISBLK(st_mode):
+        elif stat.S_ISBLK(self.mode):
             self.typeflag = BLKTYPE
+            self.major = os.major(fstat.st_dev)
+            self.minor = os.minor(fstat.st_dev)
 
         else:
             logger.warn("不支持的文件类型：{}".format(self.realpath))
@@ -414,9 +482,6 @@ class TarInfo:
         else:
             self.size = 0
             self.pax_header["size"] = self.size
-
-            self.major = os.major(fstat.st_dev)
-            self.minor = os.minor(fstat.st_dev)
 
         s, c = divmod(self.size, BLOCKSIZE)
         if c > 0:
@@ -449,31 +514,17 @@ class TarInfo:
 
 
 
-
 def test():
     logger.setLevel(logging.DEBUG)
     
     out_tar = open(sys.argv[1], "wb")
 
+    tarinfo = Tar(out_tar)
+
     for f in sys.argv[2:]:
-        tarinfo = TarInfo(f)
-        header = tarinfo.make_header()
-        
-        out_tar.write(header)
+        tarinfo.addfile(f)
 
-        logger.debug("{} :typeflag: {}".format(tarinfo.realpath, tarinfo.typeflag))
-
-        if tarinfo.typeflag in REGULAR_TYPES:
-            with open(f, "rb") as fp:
-                copyfileobj(fp, out_tar)
-
-            if tarinfo.fillsize != 0:
-                logger.debug("tarinfol.fillsize: {}".format(tarinfo.fillsize))
-                out_tar.write(bytes(tarinfo.fillsize))
-
-
-    out_tar.write(bytes(BLOCKSIZE * 2))
-
+    tarinfo.close()
     out_tar.close()
 
 
