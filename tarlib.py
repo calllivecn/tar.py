@@ -82,8 +82,7 @@ SUPPORTED_TYPES = (REGTYPE, AREGTYPE, LNKTYPE,
                    CONTTYPE, CHRTYPE, BLKTYPE)
 
 # File types that will be treated as a regular file.
-REGULAR_TYPES = (REGTYPE, AREGTYPE,
-                 CONTTYPE)
+REGULAR_TYPES = (REGTYPE, AREGTYPE, CONTTYPE)
 
 
 # Fields from a pax header that override a TarInfo attribute.
@@ -253,7 +252,7 @@ class UstarHeader:
 
 
 
-class TarInfo:
+class Tar:
     """
     tar file detail info
 
@@ -269,7 +268,7 @@ class TarInfo:
 
     解压tar文件：
     tar = TarInfo(tarfileobj)
-    tar.extrace2file("arcname", "dest") | tar.extrace2stream("arcname", streamobj)
+    tar.extrace("arcname", "dest_dir")
     
     tar.close()
     """
@@ -502,9 +501,7 @@ class TarInfo:
 
         self.mode = fstat.st_mode
 
-        st_mode = fstat.st_mode
-
-        if stat.S_ISREG(st_mode):
+        if stat.S_ISREG(self.mode):
             """
             先不支持硬链接文件，把硬链接当普通文件处理。
             """
@@ -520,22 +517,28 @@ class TarInfo:
 
             self.typeflag = REGTYPE
 
-        elif stat.S_ISDIR(st_mode):
+        elif stat.S_ISDIR(self.mode):
             self.typeflag = DIRTYPE
+            if not self.realpath.endswith("/"):
+                self.realpath += "/"
 
-        elif stat.S_ISFIFO(st_mode):
+        elif stat.S_ISFIFO(self.mode):
             self.typeflag = FIFOTYPE
 
-        elif stat.S_ISLNK(st_mode):
+        elif stat.S_ISLNK(self.mode):
             self.typeflag = SYMTYPE
             self.linkpath = os.readlink(self.realpath)
             self.pax_header["linkpath"] = self.linkpath
 
-        elif stat.S_ISCHR(st_mode):
+        elif stat.S_ISCHR(self.mode):
             self.typeflag = CHRTYPE
+            self.major = os.major(fstat.st_dev)
+            self.minor = os.minor(fstat.st_dev)
 
-        elif stat.S_ISBLK(st_mode):
+        elif stat.S_ISBLK(self.mode):
             self.typeflag = BLKTYPE
+            self.major = os.major(fstat.st_dev)
+            self.minor = os.minor(fstat.st_dev)
 
         else:
             logger.warning("不支持的文件类型：{}".format(self.realpath))
@@ -589,17 +592,7 @@ def test():
     
     out_tar = open(sys.argv[1], "wb")
 
-    for f in sys.argv[2:]:
-        tarinfo = TarInfo(f)
-        header = tarinfo.make_header()
-        
-        out_tar.write(header)
-
-        logger.debug("{} :typeflag: {}".format(tarinfo.realpath, tarinfo.typeflag))
-
-        if tarinfo.typeflag in REGULAR_TYPES:
-            with open(f, "rb") as fp:
-                copyfileobj(fp, out_tar)
+    tarinfo = Tar(out_tar)
 
             if tarinfo.fillsize != 0:
                 logger.debug("tarinfo.fillsize: {}".format(tarinfo.fillsize))
@@ -608,6 +601,7 @@ def test():
 
     out_tar.write(bytes(BLOCKSIZE * 2))
 
+    tarinfo.close()
     out_tar.close()
 
 def prints():
