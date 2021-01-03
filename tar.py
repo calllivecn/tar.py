@@ -27,7 +27,7 @@ Description='''类似 GNU tar 的工具。
 parse=argparse.ArgumentParser(
 #description='%(prog)s [option...] [FILE]...',
 usage=Description,
-epilog="author: calllivecn <c-all@com> ，https://github.com/calllivecn/tar.py"
+epilog="Author: ZhangXu <c-all@com> ，https://github.com/calllivecn/tar.py"
 )
 
 

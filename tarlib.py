@@ -5,11 +5,13 @@
 
 import io
 import os
+from os.path import join
 import sys
 import stat
 import logging
-from struct import pack, unpack, pack_into, unpack_from, Struct
 from shutil import copyfileobj
+from struct import pack, unpack, pack_into, unpack_from, Struct
+from os import path
 
 #--------------------------------------------------------
 # Init
@@ -26,6 +28,8 @@ try:
 except ModuleNotFoundError:
     GRP = False
 
+
+PROGRAM = path.basename(sys.argv[0])
 
 
 
@@ -45,7 +49,7 @@ NUL = b"\0"                     # the null character
 BLOCKSIZE = 512                 # length of processing blocks
 RECORDSIZE = BLOCKSIZE * 20     # length of records
 #GNU_MAGIC = b"ustar  \0"        # magic gnu tar string
-POSIX_MAGIC = b"ustar\x0000"    # magic posix tar string
+POSIX_MAGIC = b"ustar\x0000"    # magic posix tar string, 这是加上了 2B version 字段的.
 
 LENGTH_NAME = 100               # maximum length of a filename
 LENGTH_LINK = 100               # maximum length of a linkname
@@ -83,11 +87,13 @@ REGULAR_TYPES = (REGTYPE, AREGTYPE,
 
 
 # Fields from a pax header that override a TarInfo attribute.
-PAX_FIELDS = ("path", "linkpath", "size", "mtime", "atime",
-              "uid", "gid", "uname", "gname")
+#PAX_FIELDS = ("path", "linkpath", "size", "mtime", "atime",
+#              "uid", "gid", "uname", "gname")
 
 # Fields from a pax header that are affected by hdrcharset.
-PAX_NAME_FIELDS = {"path", "linkpath", "uname", "gname"}
+# 保留字段： realtime.any security.any
+PAX_NAME_FIELDS = ("path", "linkpath", "size", "mtime", "atime",
+              "uid", "gid", "uname", "gname", "comment", "hdrcharset")
 
 # Fields in a pax header that are numbers, all other fields
 # are treated as strings.
@@ -205,10 +211,47 @@ def calc_chksums(buf):
 
 def fillto512(data):
     s, c = divmod(len(data), BLOCKSIZE)
+
     if c > 0:
        data += bytes(BLOCKSIZE - c)
+       s += 1
 
-    return data
+    return s, c
+
+
+class UnixFile:
+
+    def __init__(self, realpath):
+        self.realpath = realpath
+
+        if self.startwith(path.sep):
+            logger.warning(f"{PROGRAM}: 去掉 “{path.sep}”符号.")
+            self.path = self.realpath.lstrip(path.sep)
+        else:
+            self.path = self.realpath
+    
+
+
+
+class UstarHeader:
+
+    def __init__(self):
+        pass
+
+    def set_pax_ext_header(self):
+        pass
+
+    def set_pax_ext_data(self):
+        """
+
+        """
+        pass
+
+
+    def set_ustar_header(self, typeflag, mode, size):
+        pass
+
+
 
 class TarInfo:
     """
@@ -237,28 +280,44 @@ class TarInfo:
     #__all__ = []
 
     def __init__(self, filename = ""):
-        self.realpath = filename
-        self.path = filename
-        self.name = filename
-        self.linkpath = ""
-        self.mode = 0o644
-        self.uid = 0
-        self.gid = 0
-        self.size = 0 
-        self.atime = 0.0
-        self.mtime = 0.0
-        self.typeflag = b"0"
-        self.uname = None
-        self.gname = None
-        self.devmajor = bytes(8)
-        self.devminor = bytes(8)
+        """
+        ustar 文件头
+        以下注释的 字段 都在 POSIX tar 里有对应的了。
+        """
+
+        #self.name = "" # 以 NUL 结尾
+        self.ustar_mode = 0o644
+        #self.uid = 0
+        #self.gid = 0
+        self.ustar_size = 0
+        #self.mtime = 0.0
+        self.chksum = b"        "
+        self.ustar_typeflag = b"0"
+        #self.linkname = "" # 以 NUL 结尾
+
+        self.magic = POSIX_MAGIC # 6B 以 NUL 结尾,  self.version = "" # 2B
+
+        #self.uname = None # 以 NUL 结尾
+        #self.gname = None # 以 NUL 结尾
+        self.devmajor = 0
+        self.devminor = 0
+        #self.prefix = "" # 以 NUL 结尾
+        self.ustar_padding = 0
+        """
+        字段 magic, uname, gname 是以 NUL 结尾的字符串。 name, linkname, prefix, 也是。
+        version 是包含字符的两个八位字节的"00"。
+        每个数字字段都以一个或多个<space>或NUL字符结尾
+        """
+
+        # 拓展头 name 字段
+        self.pax_ext_header_flag = b"@PaxHeader Author=ZhangXu Repositories=https://github.com/calllivecn/tar.py"
 
         self.pax_header = {}
 
-        # ustar 512 fill data size
-        self.fillsize = 0
+        # 操作时需要搬到的
+        self.realpath = filename
 
-        if filename:
+        if self.realpath:
             self.__get_file_metadata()
 
 
@@ -267,12 +326,22 @@ class TarInfo:
     #----------------------------------------------------
 
     def make_header(self):
+
+        ext_data = self.__make_pax_data()
+
+        # 创建 pax 拓展头
+        self.ustar_typeflag = XHDTYPE
         ext_header = self.__make_pax_header()
+
+        # 创建 ustar 文件头
+        self.ustar_typeflag = self.typeflag
+        self.ustar_size = 0
+        self.ustar_padding = self.paddig
         ustar_header = self.__make_ustar_header(self.typeflag, self.mode, 0)
 
-        return ext_header + ustar_header
+        return ext_header + ext_data + ustar_header
         
-    def __make_pax_header(self):
+    def __make_pax_data(self):
         """
         把 self.pax_header 拓展记录转成bytes
         """
@@ -282,15 +351,23 @@ class TarInfo:
             k = keyword.encode("utf-8")
 
             if keyword in PAX_NAME_FIELDS:
-                v = value.encode("utf-8")
-            elif keyword in PAX_NUMBER_FIELDS:
-                if keyword == "size":
-                    v = bytes("{:o}".format(value), "ascii")
+                if keyword in PAX_NUMBER_FIELDS:
+                    if keyword == "size":
+                        # 换成八进制
+                        v = bytes("{:o}".format(value), "ascii")
+                    else:
+                        v = bytes(str(value), "ascii")
                 else:
-                    v = bytes(str(value), "ascii")
+                    v = value.encode("utf-8")
+            else:
+                logger.warning(f"{k} 不在 PAX_NAME_FIELDS里.")
+                k = bytes(keyword)
+                v = bytes(value)
 
             l = len(k) + len(v) + 3   # " " + "=" + "\n"
+
             n = p = 0
+
             while True:
                 n = l + len(str(p))
                 if n == p:
@@ -298,68 +375,123 @@ class TarInfo:
                 p = n
         
             records += bytes(str(p), "ascii") + b" " + k + b"=" + v + b"\n"
+        
+        self.ustar_size, self.ustar_padding = fillto512(records)
 
-        return self.__make_ext_header(len(records)) + fillto512(records)
+        return bytes(records) + bytes(self.padding)
 
 
     def __get_pax_header(self):
         pass
 
-    def __make_ext_header(self, pax_header_len):
+    def __make_pax_header(self):
 
-        return self.__make_ustar_header(XHDTYPE, self.mode, pax_header_len)
-
-    def __make_ustar_header(self, typeflag, mode, size):
-
-        """
-        实际上就是ustar模式的一个ext头
-        """
-
-        pax_ext_header = b"./PaxHeader author=ZhangXu repositories=https://github.com/calllivecn/tar.py"
-        ustar = bytearray(BLOCKSIZE)
+        self.ustar = bytearray(BLOCKSIZE)
 
         # ustar field
 
         # name : len(name) = 100
-        ustar[0:len(pax_ext_header)] = pax_ext_header
+        self.ustar[0:len(self.pax_ext_header_name)] = self.pax_ext_header_name
 
         # mode : 0000644\0 
-        ustar[100:108] = bytes("{:0>7o}".format(mode & 0o7777), "ascii") + NUL
+        self.ustar[100:108] = bytes("{:0>7o}".format(self.pax_mode & 0o7777), "ascii") + NUL
 
         # size : 这里是指拓展头的大小
-        ustar[124:136] = bytes("{:0>11o}".format(size), "ascii") + NUL
+        self.ustar[124:136] = bytes("{:0>11o}".format(self.pax_size), "ascii") + NUL
 
-        # chksum <用space,用计算>
-        ustar[148:156] = b"        "
+        # chksum <用space,用计算> 不用在这里， chksum 时 加上256就行
+        # ustar[148:156] = b"        "
 
         # typeflag
-        ustar[156:157] = typeflag
+        self.ustar[156:157] = XHDTYPE
         #ustar[156:157] = b"g" 
 
         # magic(6) + version(2) = 8byte
-        ustar[257:265] = POSIX_MAGIC
+        self.ustar[257:265] = POSIX_MAGIC
 
         # major
-        ustar[329:337] = self.devmajor
+        self.ustar[329:337] = bytes("{:0>7o}".format(0), "ascii") + NUL
 
         # minor
-        ustar[337:345] = self.devmajor
+        self.ustar[337:345] = bytes("{:0>7o}".format(0), "ascii") + NUL
+
+        # padding 12B
+        self.ustar[500:512] = bytes("{:0>11o}".format(self.ustar_padding), "ascii") + NUL
 
         # chksum
-        chksum = calc_chksums(ustar)[0]
-        ustar[148:156] = bytes("{:0>7o}".format(chksum), "ascii") + NUL
+        chksum = calc_chksums(self.ustar)[0]
+        self.ustar[148:156] = bytes("{:0>7o}".format(chksum), "ascii") + NUL
 
-        return bytes(ustar)
+
+        if self.typeflag == CHRTYPE or self.typeflag == BLKTYPE:
+            self.devmajor = self.major
+            self.devminor = self.minor
+        
+        ext_data = self.__make_pax_data()
+
+        self.ustar_typeflag = XHDTYPE
+        #self.ustar_mode =  放到 self.__make_pax_data()
+        #self.ustar_size = 
+        self.ustar_padding = len(ext_data)
+
+        return bytes(self.ustar) + ext_data
+
+    def __make_ustar_header(self):
+        """
+        实际上就是ustar模式的一个ext头
+        """
+
+        self.ustar = bytearray(BLOCKSIZE)
+
+        pax_ext_header_name = b"@PaxHeader Author=ZhangXu Repositories=https://github.com/calllivecn/tar.py"
+        # ustar field
+
+        # name : len(name) = 100
+        self.ustar[0:len(pax_ext_header_name)] = pax_ext_header_name
+
+        # mode : 0000644\0 
+        self.ustar[100:108] = bytes("{:0>7o}".format(self.ustar_mode & 0o7777), "ascii") + NUL
+
+        # size : 这里是指拓展头的大小
+        self.ustar[124:136] = bytes("{:0>11o}".format(self.ustar_size), "ascii") + NUL
+
+        # chksum <用space,用计算> 不用在这里， chksum 时 加上256就行
+        # ustar[148:156] = b"        "
+
+        # typeflag
+        self.ustar[156:157] = self.ustar_typeflag
+        #ustar[156:157] = b"g" 
+
+        # magic(6) + version(2) = 8byte
+        self.ustar[257:265] = POSIX_MAGIC
+
+        # major
+        self.ustar[329:337] = bytes("{:0>7o}".format(self.devmajor), "ascii") + NUL
+
+        # minor
+        self.ustar[337:345] = bytes("{:0>7o}".format(self.devminor), "ascii") + NUL
+
+        # padding 12B
+        self.ustar[500:512] = bytes("{:0>11o}".format(self.ustar_padding), "ascii") + NUL
+
+        # chksum
+        chksum = calc_chksums(self.ustar)[0]
+        self.ustar[148:156] = bytes("{:0>7o}".format(chksum), "ascii") + NUL
+
+        return bytes(self.ustar)
+    
 
     def __get_ustar_header(self, fileobj):
-
         buf = fileobj.read(BLOCKSIZE)
 
 
     def __get_file_metadata(self):
+
         tmp = self.realpath.replace(os.sep, "/")
+
         self.path = tmp.lstrip("/")
-        self.name = self.path
+
+        #self.name = self.path
         self.pax_header["path"]  = self.path
 
         if hasattr(os, "lstat"):
@@ -406,21 +538,25 @@ class TarInfo:
             self.typeflag = BLKTYPE
 
         else:
-            logger.warn("不支持的文件类型：{}".format(self.realpath))
+            logger.warning("不支持的文件类型：{}".format(self.realpath))
 
         if self.typeflag in REGULAR_TYPES:
-            self.size = fstat.st_size
+            #self.size = fstat.st_size
             self.pax_header["size"] = self.size
         else:
-            self.size = 0
+            self.pax_size = 0
             self.pax_header["size"] = self.size
 
             self.major = os.major(fstat.st_dev)
             self.minor = os.minor(fstat.st_dev)
 
-        s, c = divmod(self.size, BLOCKSIZE)
+        self.blackcount, c = divmod(self.size, BLOCKSIZE)
         if c > 0:
-            self.fillsize = BLOCKSIZE - c
+            self.blackcount += 1
+            self.paddig = BLOCKSIZE - c
+            self.fillsize = self.padding
+        else:
+            self.padding = 0
 
         self.uid = fstat.st_uid
         self.pax_header["uid"] = self.uid
@@ -448,8 +584,6 @@ class TarInfo:
     #----------------------------------------------------
 
 
-
-
 def test():
     logger.setLevel(logging.DEBUG)
     
@@ -468,7 +602,7 @@ def test():
                 copyfileobj(fp, out_tar)
 
             if tarinfo.fillsize != 0:
-                logger.debug("tarinfol.fillsize: {}".format(tarinfo.fillsize))
+                logger.debug("tarinfo.fillsize: {}".format(tarinfo.fillsize))
                 out_tar.write(bytes(tarinfo.fillsize))
 
 
@@ -476,6 +610,9 @@ def test():
 
     out_tar.close()
 
+def prints():
+    print("posix magic: ", POSIX_MAGIC)
 
 if __name__ == "__main__":
+    prints()
     test()
