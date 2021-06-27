@@ -10,10 +10,13 @@ import io
 import re
 import sys
 import glob
+import queue
 import shutil
 import tarfile
 import argparse
+import threading
 from functools import partial
+# from multiprocessing import Pipe
 
 IMPORT_ZSTD = True
 try:
@@ -26,11 +29,74 @@ except NotImplementedError:
 # zstd.compress()
 BLOCKSIZE = 1 << 20
 
+class Pipe:
+
+    def __init__(self):
+        self.buf = queue.Queue(1)
+        self.pos = 0
+
+    def write(self, data):
+        self.len = len(data)
+        self.pos += self.len
+        self.buf.put(data)
+        return self.len
+
+    def read(self):
+        return self.buf.get()
+    
+    def tell(self):
+        return self.pos
+    
+    def close(self):
+        print("有调用 close()")
+        self.buf.put(b"")
+
+def filter(tarinfo):
+    tarinfo.name
+
+    # --exclude
+    if False:
+        return None
+
+    # 可以加入
+    return tarinfo
+
 class Tar:
 
-    def __init__(self, instream, outstream):
-        pass
+    def __init__(self, mode, pipe):
 
+        self.pipe = pipe
+
+        # 如果tarf 是 标准输入，那只可能是解压
+        if mode == "r":
+            self.tarobj = tarfile.open(mode="r|", fileobj=self.pipe)
+        elif mode == "w":
+            self.tarobj = tarfile.open(mode="w|", fileobj=self.pipe)
+
+    def add(self, *args, **kwargs):
+        self.th = threading.Thread(target=self.tarobj.add, args=args, kwargs=kwargs)
+        self.th.start()
+        # self.tarobj.add(*args, **kwargs)
+
+    def extractall(self, *args, **kwargs):
+        self.th = threading.Thread(target=self.tarobj.extractall, args=args, kwargs=kwargs)
+        self.th.start()
+        # self.tarobj.extractall(*args, **kwargs)
+
+    def list(self, *args, **kwargs):
+        self.th = threading.Thread(target=self.tarobj.list, args=args, kwargs=kwargs)
+        self.th.start()
+
+    def join(self):
+        self.th.join()
+        self.tarobj.close()
+        self.pipe.close()
+
+
+class Zstd:
+
+    def __init__(self):
+        pass
 
 
 class Argument(argparse.ArgumentParser):
@@ -81,7 +147,7 @@ def split_size(unit_size):
     elif u == "P":
         return size*(1<<50)
     else:
-        raise argparse.ArgumentTypeError("不支的切割单位")
+        raise argparse.ArgumentTypeError(f"不支的切割单位, 必须是: {unit_chars}")
 
 def exclude(glob_list):
     # glob
@@ -178,8 +244,39 @@ def main():
         print(args)
         sys.exit(0)
 
+def compress(target, pipe):
+
+    Zst = pyzstd.ZstdCompressor()
+    with open(target, "wb") as f:
+        while True:
+            tar_data = pipe.read()
+            if tar_data == b"":
+                f.write(Zst.flush())
+                break
+            else:
+                f.write(Zst.compress(tar_data))
+
+
+def make_tar_test(source, target):
+    """
+    测试下创建tar.zst ok
+    """
+    pipe = Pipe()
+    tar = Tar("w", pipe)
+    print("tar.add()...")
+    tar.add(source)
+
+    th = threading.Thread(target=compress, args=(target, pipe))
+    th.start()
+    print("compress()...")
+
+    tar.join()
+    print("tar over.")
+    th.join()
+    print("compress over.")
+
 
 if __name__ == "__main__":
-    # read_tar()
-    main()
+    make_tar_test(sys.argv[1], sys.argv[2])
+    # main()
 
