@@ -5,18 +5,9 @@
 # https://github.com/calllivecn
 
 
-import os
-import io
-import re
 import sys
-import glob
-import queue
-import shutil
-import tarfile
-import argparse
 import threading
 from functools import partial
-# from multiprocessing import Pipe
 
 IMPORT_ZSTD = True
 try:
@@ -25,136 +16,21 @@ try:
 except NotImplementedError:
     IMPORT_ZSTD = False
 
+from libtar import (
+    Tar,
+    filter,
+)
+from libargparse import (
+    Argument,
+    exclude,
+    exclude_regex,
+    compress_level,
+    split_size,
+)
+
 # zstd 的标准压缩块大小是256K , 这里我使用1MB 块
 # zstd.compress()
 BLOCKSIZE = 1 << 20
-
-class Pipe:
-
-    def __init__(self):
-        self.buf = queue.Queue(1)
-        self.pos = 0
-
-    def write(self, data):
-        self.len = len(data)
-        self.pos += self.len
-        self.buf.put(data)
-        return self.len
-
-    def read(self):
-        return self.buf.get()
-    
-    def tell(self):
-        return self.pos
-    
-    def close(self):
-        print("有调用 close()")
-        self.buf.put(b"")
-
-def filter(tarinfo):
-    tarinfo.name
-
-    # --exclude
-    if False:
-        return None
-
-    # 可以加入
-    return tarinfo
-
-class Tar:
-
-    def __init__(self, mode, pipe):
-
-        self.pipe = pipe
-
-        # 如果tarf 是 标准输入，那只可能是解压
-        if mode == "r":
-            self.tarobj = tarfile.open(mode="r|", fileobj=self.pipe)
-        elif mode == "w":
-            self.tarobj = tarfile.open(mode="w|", fileobj=self.pipe)
-
-    def add(self, *args, **kwargs):
-        self.th = threading.Thread(target=self.tarobj.add, args=args, kwargs=kwargs)
-        self.th.start()
-        # self.tarobj.add(*args, **kwargs)
-
-    def extractall(self, *args, **kwargs):
-        self.th = threading.Thread(target=self.tarobj.extractall, args=args, kwargs=kwargs)
-        self.th.start()
-        # self.tarobj.extractall(*args, **kwargs)
-
-    def list(self, *args, **kwargs):
-        self.th = threading.Thread(target=self.tarobj.list, args=args, kwargs=kwargs)
-        self.th.start()
-
-    def join(self):
-        self.th.join()
-        self.tarobj.close()
-        self.pipe.close()
-
-
-class Zstd:
-
-    def __init__(self):
-        pass
-
-
-class Argument(argparse.ArgumentParser):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self._positionals = self.add_argument_group("位置参数")
-        self._optionals = self.add_argument_group("通用选项")
-
-
-def compress_level(level):
-    errmsg="压缩等级必须为：1 ~ 22"
-    try:
-        l = int(level)
-    except Exception:
-        raise argparse.ArgumentTypeError(errmsg)
-    
-    if l < 1 or l > 22:
-        raise argparse.ArgumentTypeError(errmsg)
-
-    return l
-
-def split_size(unit_size):
-    unit_chars = ("B", "K", "M", "G", "T", "P")
-    try:
-        u = unit_size[-1]
-        if u in ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"):
-            size = int(unit_size)
-            u = "M"
-        else:
-            size = int(unit_size[:-1])
-
-    except Exception:
-        if u not in unit_chars:
-            raise argparse.ArgumentTypeError(f"单位不正确: {unit_chars}")
-    
-    if u == "B":
-        return size
-    elif u == "K":
-        return size*(1<<10)
-    elif u == "M":
-        return size*(1<<20)
-    elif u == "G":
-        return size*(1<<30)
-    elif u == "T":
-        return size*(1<<40)
-    elif u == "P":
-        return size*(1<<50)
-    else:
-        raise argparse.ArgumentTypeError(f"不支的切割单位, 必须是: {unit_chars}")
-
-def exclude(glob_list):
-    # glob
-    pass
-
-def exclude_regex(regex_list):
-    pass
 
 
 Description='''\
@@ -197,8 +73,8 @@ def main():
 
     parse.add_argument("-v", "--verbose", action="count", help="输出详情")
 
-    parse.add_argument("--exclude", nargs="+", type=exclude, help="排除这类文件,使用 glob: PATTERN")
-    parse.add_argument("--exclude-regex", nargs="+", type=exclude_regex, help="排除这类文件, 使用正则 PATTERN")
+    parse.add_argument("--exclude", metavar="PATTERN", nargs="+", type=exclude, help="排除这类文件,使用 glob: PATTERN")
+    parse.add_argument("--exclude-regex", metavar="PATTERN", nargs="+", type=exclude_regex, help="排除这类文件, 使用正则 PATTERN")
 
     # group2 = parse.add_mutually_exclusive_group()
     # group2.add_argument('-z', '--gzip', action='store_true', help='filter the archive through gzip')
@@ -209,7 +85,7 @@ def main():
 
     parse_compress = parse.add_argument_group("压缩选项", description="目前只使用zstd压缩方案")
     parse_compress.add_argument("-z", action="store_true", help="使用zstd压缩(default: level=10)")
-    parse_compress.add_argument("-l", metavar="level", type=compress_level, default=10, help="指定压缩level: 1 ~ 22")
+    parse_compress.add_argument("-l", metavar="level", type=compress_level, default=3, help="指定压缩level: 1 ~ 22")
 
     parse_encrypto = parse.add_argument_group("加密", description="目前只使用aes-256-cfb")
     parse_encrypto.add_argument("-e", action="store_true", help="加密")
@@ -217,8 +93,8 @@ def main():
     # parse_encrypto.add_argument("-d", action="store_true", help="解密")
     parse_encrypto.add_argument("--prompt", help="密码提示信息")
 
-    parse_hash = parse.add_argument_group("输出同时计算sha值")
-    parse_hash.add_argument("--sha-file",metavar="FILENAME", action="store", help="哈希值输出到文件(default: 输出到标准输出 or stderr)")
+    parse_hash = parse.add_argument_group("计算输出文件的sha值")
+    parse_hash.add_argument("--sha-file",metavar="FILENAME", action="store", help="哈希值输出到文件(default: stderr)")
     parse_hash.add_argument("--md5", action="store_true", help="下载同时计算 md5")
     parse_hash.add_argument("--sha1", action="store_true", help="下载同时计算 sha1")
     parse_hash.add_argument("--sha224", action="store_true", help="下载同时计算 sha224")
@@ -228,7 +104,7 @@ def main():
     parse_hash.add_argument("--sha-all", action="store_true", help="计算下列所有哈希值")
 
     parse_split = parse.add_argument_group("切割输出文件")
-    parse_split.add_argument("--split", type=split_size, default="256M", help="单个文件最大大小(单位：B, K, M, G, T, P. default: 256M)")
+    parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)")
     # parse_split.add_argument("--split-filename", help="指定切割文件后缀")
     parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 0000 ~ 9999)")
 
@@ -261,12 +137,11 @@ def make_tar_test(source, target):
     """
     测试下创建tar.zst ok
     """
-    pipe = Pipe()
-    tar = Tar("w", pipe)
+    tar = Tar("w")
     print("tar.add()...")
     tar.add(source)
 
-    th = threading.Thread(target=compress, args=(target, pipe))
+    th = threading.Thread(target=compress, args=(target, tar.pipe))
     th.start()
     print("compress()...")
 
@@ -277,6 +152,6 @@ def make_tar_test(source, target):
 
 
 if __name__ == "__main__":
-    make_tar_test(sys.argv[1], sys.argv[2])
-    # main()
+    # make_tar_test(sys.argv[1], sys.argv[2])
+    main()
 
