@@ -8,6 +8,9 @@ import tarfile
 import threading
 
 class Pipe:
+    """
+    使用pipe模仿 file object.
+    """
 
     def __init__(self, queuesize):
         self.buf = queue.Queue(queuesize)
@@ -26,7 +29,6 @@ class Pipe:
         return self.pos
     
     def close(self):
-        print("有调用 close()")
         self.buf.put(b"")
 
 

@@ -28,9 +28,9 @@ from libargparse import (
     split_size,
 )
 
-# zstd 的标准压缩块大小是256K , 这里我使用1MB 块
+# zstd 的标准压缩块大小是256K , ~这里我使用1MB 块~
 # zstd.compress()
-BLOCKSIZE = 1 << 20
+BLOCKSIZE = 1 << 18 # 256K
 
 
 Description='''\
@@ -132,6 +132,17 @@ def compress(target, pipe):
             else:
                 f.write(Zst.compress(tar_data))
 
+def decompress(source, pipe):
+    zst = pyzstd.ZstdDecompressor()
+    with open(source, "rb") as f:
+        while True:
+            zst_data = f.read(BLOCKSIZE)
+            if zst_data == b"":
+                break
+            else:
+                tar_data = zst.decompress(zst_data)
+                pipe.write(tar_data)
+
 
 def make_tar_test(source, target):
     """
@@ -141,7 +152,7 @@ def make_tar_test(source, target):
     print("tar.add()...")
     tar.add(source)
 
-    th = threading.Thread(target=compress, args=(target, tar.pipe))
+    th = threading.Thread(target=compress, args=(target, tar.pipe), daemon=True)
     th.start()
     print("compress()...")
 
@@ -151,7 +162,23 @@ def make_tar_test(source, target):
     print("compress over.")
 
 
+def decomp_tar_test(source, target):
+    """
+    测试解压 tar.zst
+    """
+    tar = Tar("r")
+
+    tar.extractall(target)
+
+    th = threading.Thread(target=decompress, args=(source, tar.pipe), daemon=True)
+    th.start()
+
+    th.join()
+    tar.join()
+    
+
 if __name__ == "__main__":
     # make_tar_test(sys.argv[1], sys.argv[2])
-    main()
+    decomp_tar_test(sys.argv[1], sys.argv[2])
+    # main()
 
