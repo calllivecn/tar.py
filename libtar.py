@@ -15,6 +15,7 @@ class Pipe:
     def __init__(self, queuesize):
         self.buf = queue.Queue(queuesize)
         self.pos = 0
+        self.data = b""
 
     def write(self, data):
         self.len = len(data)
@@ -22,8 +23,25 @@ class Pipe:
         self.buf.put(data)
         return self.len
 
-    def read(self):
-        return self.buf.get()
+    def read(self, size):
+        read_len = 0
+
+        while read_len < size:
+            data = self.buf.get()
+            if data == b"":
+                break
+
+            read_len += len(data)
+            self.data += data
+        
+        if read_len <= size:
+            re_data = self.data[:read_len]
+            self.data = b""
+        else:
+            re_data = self.data[:size]
+            self.data = self.data[size:]
+        
+        return re_data
     
     def tell(self):
         return self.pos
