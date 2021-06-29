@@ -167,7 +167,6 @@ def decomp_tar_test(source, target):
     测试解压 tar.zst
     """
     tar = Tar("r")
-
     tar.extractall(target)
 
     th = threading.Thread(target=decompress, args=(source, tar.pipe), daemon=True)
