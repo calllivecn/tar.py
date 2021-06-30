@@ -46,6 +46,9 @@ class Pipe:
     def tell(self):
         return self.pos
     
+    # def seek(self, save_pos):
+        # return save_pos
+    
     def close(self):
         self.buf.put(b"")
 
@@ -57,28 +60,40 @@ class Tar:
         self.pipe = Pipe(queuesize)
 
         if mode == "r":
-            self.tarobj = tarfile.open(mode="r|", fileobj=self.pipe)
+            # self.th1 = threading.Thread(target=self.open, args=("r|tar",), daemon=True)
+            # self.th1.start()
+            self.tarobj = tarfile.open(mode="r", fileobj=self.pipe)
         elif mode == "w":
-            self.tarobj = tarfile.open(mode="w|", fileobj=self.pipe)
+            # self.th1 = threading.Thread(target=self.open, args=("w|tar",), daemon=True)
+            # self.th1.start()
+            self.tarobj = tarfile.open(mode="w", fileobj=self.pipe)
 
     def add(self, *args, **kwargs):
-        self.th = threading.Thread(target=self.tarobj.add, args=args, kwargs=kwargs)
+        # self.th1.join()
+        self.th = threading.Thread(target=self.tarobj.add, args=args, kwargs=kwargs, daemon=True)
         self.th.start()
         # self.tarobj.add(*args, **kwargs)
 
     def extractall(self, *args, **kwargs):
-        self.th = threading.Thread(target=self.tarobj.extractall, args=args, kwargs=kwargs)
+        # self.th1.join()
+        self.th = threading.Thread(target=self.tarobj.extractall, args=args, kwargs=kwargs, daemon=True)
         self.th.start()
         # self.tarobj.extractall(*args, **kwargs)
 
     def list(self, *args, **kwargs):
-        self.th = threading.Thread(target=self.tarobj.list, args=args, kwargs=kwargs)
+        self.th = threading.Thread(target=self.tarobj.list, args=args, kwargs=kwargs, daemon=True)
         self.th.start()
 
     def join(self):
+        self.th1.join()
         self.th.join()
         self.tarobj.close()
         self.pipe.close()
+    
+    def open(self, mode):
+        print("open begin")
+        self.tarobj = tarfile.open(mode, fileobj=self.pipe)
+        print("open end")
 
 
 def filter(tarinfo):
