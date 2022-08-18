@@ -21,7 +21,7 @@ IMPORT_ZSTD = True
 try:
     # import zstd 这个库太简单了，不方便使用
     import pyzstd
-except NotImplementedError:
+except ModuleNotFoundError:
     IMPORT_ZSTD = False
 
 from libtar import (
