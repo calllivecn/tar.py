@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # coding=utf-8
 # date 2019-03-20 16:43:36
-# update 2021-06-27 18:30:23
+# update 2022-08-18 09:39:39
 # https://github.com/calllivecn
 
 
+import os
 import sys
 import threading
-from functools import partial
 
 IMPORT_ZSTD = True
 try:
-    # import zstd 这个库太简单了，不方便使用
+    # import zstd 这个库太简单了，不方便。改为使用 pyzstd
     import pyzstd
-except NotImplementedError:
+except ModuleNotFoundError:
     IMPORT_ZSTD = False
 
 from libtar import (
@@ -49,7 +49,7 @@ def main():
     parse = Argument(
         usage="%(prog)s [option] [file ... or directory ...]",
         description=Description,
-        epilog="Author: calllivecn <c-all@com>, Repositories: https://github.com/calllivecn/tar.py",
+        epilog="Author: calllivecn <c-all@qq.com>, Repositories: https://github.com/calllivecn/tar.py",
         add_help=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )

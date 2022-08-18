@@ -3,6 +3,8 @@
 # date 2020-04-25 12:38:10
 # author calllivecn <c-all@qq.com>
 
+# 需要重新改为 cryptography版
+
 
 from ctypes import CDLL
 from ctypes.util import find_library
