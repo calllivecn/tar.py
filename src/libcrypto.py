@@ -8,16 +8,11 @@ import sys
 import getpass
 import logging
 import argparse
-import glob
-from hashlib import sha256, pbkdf2_hmac
-from binascii import b2a_hex
-from struct import Struct, pack, unpack
 
-from os.path import (
-                    join, 
-                    isfile, 
-                    exists, 
-                )
+from struct import Struct
+from binascii import b2a_hex
+from os.path import isfile, exists
+from hashlib import sha256, pbkdf2_hmac
 
 
 from cryptography.hazmat.primitives.ciphers import (
@@ -32,6 +27,9 @@ ENCRYPTO = 1  # 加密
 DECRYPTO = 0  # 解密
 
 version = "v1.2.0"
+
+
+BLOCK = 1 << 20  # 1M 读取文件块大小
 
 def getlogger(level=logging.INFO):
     fmt = logging.Formatter(
@@ -136,14 +134,61 @@ def fileinfo(filename):
     with open(filename, "rb") as fp:
         file_version, prompt_len, iv, salt, prompt = header.getHeader(fp)
 
-    print("File Version: 0x{}".format(
-        b2a_hex(pack("!H", file_version)).decode()))
+    print("File Version: {}(1byte)".format(hex(file_version)))
 
     print("IV: {}".format(b2a_hex(iv).decode()))
 
     print("Salt: {}".format(b2a_hex(salt).decode()))
 
     print("Password Prompt: {}".format(prompt))
+
+
+def encrypt(in_stream, out_stream, password, prompt=None):
+    header = FileFormat()
+
+    if prompt is None:
+        header.setPrompt()
+    else:
+        header.setPrompt(prompt)
+
+    header.setHeader(out_stream)
+
+    key = key_deriverd(password, header.salt)
+
+    algorithm = algorithms.AES(key)
+    cipher = Cipher(algorithm, mode=modes.CFB(header.iv))
+    aes = cipher.encryptor()
+
+    while (data := in_stream.read(BLOCK)) != b"":
+        en_data = aes.update(data)
+        out_stream.write(en_data)
+
+    out_stream.write(aes.finalize())
+
+
+def decrypt(in_stream, out_stream, password):
+    header = FileFormat()
+
+    file_version, prompt_len, iv, salt, prompt = header.getHeader(
+        in_stream)
+
+    if file_version == 0x02:
+        key = key_deriverd(password, salt)
+    elif file_version == 0x01:
+        key = salt_key(password, salt)
+    else:
+        logger.error(f"不支持的文件版本。")
+        sys.exit(2)
+
+    algorithm = algorithms.AES(key)
+    cipher = Cipher(algorithm, mode=modes.CFB(iv))
+    aes = cipher.decryptor()
+
+    while (data := in_stream.read(BLOCK)) != b"":
+        de_data = aes.update(data)
+        out_stream.write(de_data)
+    
+    out_stream.write(aes.finalize())
 
 
 
@@ -172,7 +217,6 @@ def main():
     args = parse.parse_args()
     # print(args);#sys.exit(0)
 
-    block = 1 << 20  # 1M 读取文件块大小
 
     if args.I:
         fileinfo(args.I)
@@ -208,67 +252,22 @@ def main():
     else:
         out_stream = open(args.o, "wb")
     
-    
     # 加密
     if args.d:
 
         logger.debug("开始加密...")
-
-        header = FileFormat()
-
-        if args.p is None:
-            header.setPrompt()
-        else:
-            header.setPrompt(args.p)
-
-        header.setHeader(out_stream)
-
-        key = key_deriverd(password, header.salt)
-
-        algorithm = algorithms.AES(key)
-        cipher = Cipher(algorithm, mode=modes.CFB(header.iv))
-        aes = cipher.encryptor()
-
-        while (data := in_stream.read(block)) != b"":
-            en_data = aes.update(data)
-            out_stream.write(en_data)
-
-        finally_data = aes.finalize()
-        # print("finally data:", finally_data)
-        out_stream.write(finally_data)
+        encrypt(in_stream, out_stream, password, args.p)
+        in_stream.close()
+        out_stream.close()
 
     # 解密
     else:
         logger.debug("开始解密...")
 
-        header = FileFormat()
+        decrypt(in_stream, out_stream, password)
 
-        file_version, prompt_len, iv, salt, prompt = header.getHeader(
-            in_stream)
-
-        if file_version == 0x02:
-            key = key_deriverd(password, salt)
-        elif file_version == 0x01:
-            key = salt_key(password, salt)
-        else:
-            logger.error(f"不支持的文件版本。")
-            sys.exit(2)
-
-        algorithm = algorithms.AES(key)
-        cipher = Cipher(algorithm, mode=modes.CFB(iv))
-        aes = cipher.decryptor()
-
-        while (data := in_stream.read(block)) != b"":
-            de_data = aes.update(data)
-            out_stream.write(de_data)
-        
-        finally_data = aes.finalize()
-        # print("finally data:", finally_data)
-        out_stream.write(finally_data)
-
-    # close
-    in_stream.close()
-    out_stream.close()
+        in_stream.close()
+        out_stream.close()
 
 
 if __name__ == "__main__":
