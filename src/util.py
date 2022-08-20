@@ -196,9 +196,26 @@ def extract(readable: Union[Path, BinaryIO], path: Path, verbose=False, safe_ext
         raise ValueError("参数错误")
 
 
-##################
-# tar 相关处理函数
-##################
+def tarlist(readable: Union[Path, BinaryIO], path: Path, verbose=False):
+    """
+    些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
+    """
+    if isinstance(readable, Path):
+        with tarfile.open(readable, mode="r:*") as tar:
+                tar.list(verbose)
+
+    elif isinstance(readable, BinaryIO):
+        # 从标准输入提取
+        with tarfile.open(mode="r|*", fileobj=readable) as tar:
+            while (tarinfo := tar.next()) is not None:
+                tar.list(verbose)
+
+        # tarfile fileobj 需要自行关闭
+        readable.close()
+    
+    else:
+        raise ValueError("参数错误")
+
 
 def order_bad_path(tarinfo: tarfile.TarInfo):
     """
@@ -251,6 +268,11 @@ def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
 
             # 安全的直接提取
             tar.extract(tarinfo, path)
+
+
+def pipe2tarlist(pipe: Pipe, path: Path, verbose=False):
+    with tarfile.open(mode="r|", fileobj=pipe) as tar:
+        tar.list(verbose)
 
 
 #################

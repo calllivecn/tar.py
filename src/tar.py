@@ -167,7 +167,75 @@ def extract(args):
 
 
 def tarlist(args):
-    pass
+    pytar = True
+    # 从文件提取
+    try:
+        if args.f:
+            util.tarlist(args.f.resolve(), args.C, args.verbose)
+        else:
+            util.tarlist(sys.stdin.buffer, args.C, args.verbose)
+    except tarfile.ReadError:
+        pytar = False
+    
+    
+    if pytar:
+        sys.exit(0)
+
+    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
+    suffixs = args.f.suffixes
+    suffix = "".join(suffixs)
+    NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
+    if suffix not in NEWTARS:
+        raise tarfile.ReadError(f"未知格式文件")
+
+    pipes = []
+    fork_threads = []
+    p = util.Pipe()
+    if args.f:
+        f = open(args.f.resolve(), "rb")
+        th1 = Thread(target=util.to_pipe, args=(f, p), daemon=True)
+    else:
+        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p), daemon=True)
+    
+    th1.start()
+    pipes.append(p)
+    fork_threads.append(th1)
+
+    if args.e:
+        if args.k:
+            password = args.k
+        else:
+            password = getpass.getpass("Password:")
+
+        p2 = util.Pipe()
+        th2 = Thread(target=util.decrypt, args=(p, p2, password), daemon=True)
+        th2.start()
+
+        p = p2
+
+        pipes.append(p)
+        fork_threads.append(th2)
+    
+    if args.z:
+        p3 = util.Pipe()
+        th3 = Thread(target=util.decompress, args=(p, p3), daemon=True)
+        th3.start()
+
+        p = p3
+
+        pipes.append(p)
+        fork_threads.append(th3)
+    
+    # extract pipe 2 tar
+    try:
+        util.pipe2tarlist(p, args.C, args.verbose)
+    except tarfile.ReadError:
+        print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+        sys.exit(1)
+
+    [th.join() for th in fork_threads]
+    [p.close2() for p in pipes]
+
 
 def main():
     parse, args = parse_args()
@@ -220,7 +288,7 @@ def main():
     elif args.x:
         extract(args)
 
-    elif args.t:
+    elif args.list:
         tarlist(args)
 
     else:
