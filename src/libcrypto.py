@@ -83,7 +83,8 @@ class FileFormat:
             self.prompt = prompt
 
     def setHeader(self, fp):
-        logger.debug(f"set file header {fp.name}")
+        # logger.debug(f"set file header {fp.name}")
+        logger.debug(f"set file header")
         logger.debug(f"\nversion: {self.version}\n prompt_len: {self.prompt_len}\n vi: {self.iv}\n salt: {self.salt}\n prompt: {self.prompt}")
         headers = self.file_fmt.pack(self.version, self.prompt_len)
         self.HEAD = headers + self.iv + self.salt + self.prompt
@@ -164,6 +165,7 @@ def encrypt(in_stream, out_stream, password, prompt=None):
         out_stream.write(en_data)
 
     out_stream.write(aes.finalize())
+    out_stream.close()
 
 
 def decrypt(in_stream, out_stream, password):
@@ -189,6 +191,7 @@ def decrypt(in_stream, out_stream, password):
         out_stream.write(de_data)
     
     out_stream.write(aes.finalize())
+    out_stream.close()
 
 
 
