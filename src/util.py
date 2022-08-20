@@ -5,6 +5,7 @@
 
 from typing import (
     IO,
+    BinaryIO,
     Set,
     Union,
     Callable,
@@ -32,10 +33,7 @@ except ModuleNotFoundError:
     IMPORT_ZSTD = False
 
 
-from libcrypto import (
-    encrypt,
-    decrypt,
-)
+import libcrypto
 
 # zstd 的标准压缩块大小是256K , 按 pyzstd 文档里写的使用2MB块
 # pipe buf size
@@ -133,33 +131,74 @@ def decompress(rpipe: Pipe, wpipe: Pipe):
     while (zst_data := rpipe.read(BLOCKSIZE)) != b"":
         tar_data = zst.decompress(zst_data)
         wpipe.write(tar_data)
-    wpipe.write(zst.flush())
 
     wpipe.close()
 
+
+##################
+# crypto 相关处理函数
+##################
+
+def encrypt(rpipe: Pipe, wpipe:Pipe, password, prompt):
+    libcrypto.encrypt(rpipe, wpipe, password, prompt)
+    wpipe.close()
+
+def decrypt(rpipe: Pipe, wpipe:Pipe, password):
+    libcrypto.decrypt(rpipe, wpipe, password)
+    wpipe.close()
 
 ##################
 # tar 相关处理函数
 ##################
 
 
-# 处理解包 tar 时的路径问题
-def extract(archive: Union[Path, IO], path: Path, safe_extract=False):
+def extract(readable: Union[Path, BinaryIO], path: Path, verbose=False, safe_extract=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
     """
-    with tarfile.open(archive, mode="r:*") as tar:
-        while (tarinfo := tar.next()) is not None:
-            if ".." in tarinfo.name:
-                if safe_extract:
-                    print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
-                else:
-                    print("成员路径包含 `..' 提取为:", tarinfo.name)
-                    order_bad_path(Path(tarinfo.name))
+    if isinstance(readable, Path):
+        with tarfile.open(readable, mode="r:*") as tar:
+            while (tarinfo := tar.next()) is not None:
+                if ".." in tarinfo.name:
+                    if safe_extract:
+                        print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
+                    else:
+                        print("成员路径包含 `..' 提取为:", tarinfo.name, file=sys.stderr)
+                        order_bad_path(Path(tarinfo.name))
 
-            # 安全的直接提取
-            tar.extract(tarinfo, path)
+                if verbose:
+                    print(tarinfo.name, file=sys.stderr)
 
+                # 安全的直接提取
+                tar.extract(tarinfo, path)
+
+    elif isinstance(readable, BinaryIO):
+        # 从标准输入提取
+        with tarfile.open(mode="r|*", fileobj=readable) as tar:
+            while (tarinfo := tar.next()) is not None:
+                if ".." in tarinfo.name:
+                    if safe_extract:
+                        print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
+                    else:
+                        print("成员路径包含 `..' 提取为:", tarinfo.name, file=sys.stderr)
+                        order_bad_path(Path(tarinfo.name))
+
+                if verbose:
+                    print(tarinfo.name, file=sys.stderr)
+
+                # 安全的直接提取
+                tar.extract(tarinfo, path)
+
+        # tarfile fileobj 需要自行关闭
+        readable.close()
+    
+    else:
+        raise ValueError("参数错误")
+
+
+##################
+# tar 相关处理函数
+##################
 
 def order_bad_path(tarinfo: tarfile.TarInfo):
     """
@@ -195,16 +234,20 @@ def tar2pipe(paths: list[Path], pipe: Pipe, filter: Union[Callable, None] = None
     pipe.close()
 
 
-# 提取
-def pipe2tar(pipe: Pipe, path: Path, safe_extract=False):
+# 提取 zst
+def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
+
     with tarfile.open(mode="r|", fileobj=pipe) as tar:
         while (tarinfo := tar.next()) is not None:
             if ".." in tarinfo.name:
                 if safe_extract:
                     print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
                 else:
-                    print("成员路径包含 `..' 提取为:", tarinfo.name)
+                    print("成员路径包含 `..' 提取为:", tarinfo.name, file=sys.stderr)
                     order_bad_path(Path(tarinfo.name))
+
+            if verbose:
+                print(tarinfo.name, file=sys.stderr)
 
             # 安全的直接提取
             tar.extract(tarinfo, path)
@@ -218,6 +261,7 @@ def to_file(rpipe: Pipe, fileobj: IO):
     # with open(filename, "wb") as f:
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
+    fileobj.close()
 
 # fork 节点执行完后，需要关闭向后管的管道
 def to_pipe(rpipe: Pipe, wpipe: Pipe):

@@ -8,6 +8,7 @@
 import os
 import sys
 import getpass
+import tarfile
 from threading import Thread
 
 
@@ -79,25 +80,94 @@ def create(args, shafuncs):
     # 最后写写入到文件, 还需要处理输出到标准输出的
     if args.f:
         f = open(args.f, "wb")
-        th_end = Thread(target=util.to_file, args=(p, f), name="to file", daemon=True)
     else:
         f = sys.stdout.buffer
-        th_end = Thread(target=util.to_file, args=(p, f), name="to stdout", daemon=True)
+    
+    util.to_file(p, f)
 
-    th_end.start()
     [ th.join() for th in fork_threads]
     [ p.close2() for p in pipes]
 
-    th_end.join()
-    f.close()
 
 def extract(args):
-    
-    if args.f:
-        if args.f.suffx() == .gz:
-        p = util.Pipe()
-        th1 = Thread(target=util.extract, args=())
+    """
+    解压分：
+    1. 从文件读取和从标准输入读取。
+    2. gz, z2, xz 文件和新的zst|zst+aes。
+    """
 
+    pytar = True
+    # 从文件提取
+    try:
+        if args.f:
+            util.extract(args.f.resolve(), args.C, args.verbose, args.safe_extract)
+        else:
+            util.extract(sys.stdin.buffer, args.C, args.verbose, args.safe_extract)
+    except tarfile.ReadError:
+        pytar = False
+    
+    
+    if pytar:
+        sys.exit(0)
+
+    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
+    suffixs = args.f.suffixes
+    suffix = "".join(suffixs)
+    NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
+    if suffix not in NEWTARS:
+        raise tarfile.ReadError(f"未知格式文件")
+
+    pipes = []
+    fork_threads = []
+    p = util.Pipe()
+    if args.f:
+        f = open(args.f.resolve(), "rb")
+        th1 = Thread(target=util.to_pipe, args=(f, p), daemon=True)
+    else:
+        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p), daemon=True)
+    
+    th1.start()
+    pipes.append(p)
+    fork_threads.append(th1)
+
+    if args.e:
+        if args.k:
+            password = args.k
+        else:
+            password = getpass.getpass("Password:")
+
+        p2 = util.Pipe()
+        th2 = Thread(target=util.decrypt, args=(p, p2, password), daemon=True)
+        th2.start()
+
+        p = p2
+
+        pipes.append(p)
+        fork_threads.append(th2)
+    
+    if args.z:
+        p3 = util.Pipe()
+        th3 = Thread(target=util.decompress, args=(p, p3), daemon=True)
+        th3.start()
+
+        p = p3
+
+        pipes.append(p)
+        fork_threads.append(th3)
+    
+    # extract pipe 2 tar
+    try:
+        util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
+    except tarfile.ReadError:
+        print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+        sys.exit(1)
+
+    [th.join() for th in fork_threads]
+    [p.close2() for p in pipes]
+
+
+def tarlist(args):
+    pass
 
 def main():
     parse, args = parse_args()
@@ -144,10 +214,18 @@ def main():
     if args.c:
         if len(args.target) == 0:
             print(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件", file=sys.stderr)
-            return 
+            sys.exit(1)
         create(args, shafuncs)
+
+    elif args.x:
+        extract(args)
+
+    elif args.t:
+        tarlist(args)
+
     else:
-        extract(args, shafuncs)
+        print("-c|-x|-t 参数之一是必须的")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
