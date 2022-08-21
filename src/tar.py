@@ -53,14 +53,6 @@ def create(args, shafuncs):
         p = p3
         pipes.append(p)
 
-    """
-    if args.split:
-        p2 = util.Pipe()
-        th2 = Thread(target=util.split, args=(p1, p2, args.level, args.T), daemon=True)
-        th2.start()
-        p2.close()
-    """
-
     if len(shafuncs) > 0:
         fork = util.Pipefork()
         p4 = fork.fork()
@@ -76,8 +68,16 @@ def create(args, shafuncs):
         fork_threads.append(th4)
         pipes.append(fork)
 
+    """
+    if args.split:
+        p2 = util.Pipe()
+        th2 = Thread(target=util.split, args=(p1, p2, args.level, args.T), daemon=True)
+        th2.start()
+        p2.close()
+    """
+
     
-    # 最后写写入到文件, 还需要处理输出到标准输出的
+    # 最后写入到文件, 还需要处理到标准输出
     if args.f:
         f = open(args.f, "wb")
     else:
