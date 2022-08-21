@@ -70,16 +70,6 @@ def target_exists(filename):
         raise argparse.ArgumentTypeError(f"{p} 不存在")
 
 
-def exclude(glob_list):
-    # glob
-    for g in glob_list:
-        glob.glob0(g)
-
-
-def exclude_regex(regex_list):
-    pass
-
-
 Description='''\
 POXIS tar 工具
 
@@ -119,11 +109,11 @@ def parse_args():
     group1.add_argument("-x", action="store_true", help="解压tar文件")
     group1.add_argument("-t", "--list", action="store_true", help="输出tar文件内容")
 
-    parse.add_argument("--safe-extract", dest="safe_extract", action="store_true", help="处理tar里不安全的路径后在解压")
+    parse.add_argument("--safe-extract", dest="safe_extract", action="store_true", help="解压时处理tar里不安全的路径")
     # parse.add_argument("-v", "--verbose", action="count", help="输出详情")
     parse.add_argument("-v", "--verbose", action="store_true", help="输出详情")
 
-    parse.add_argument("--excludes", dest="excludes", metavar="PATTERN", nargs="+", type=exclude, default=[], help="排除这类文件,使用Unix shell: PATTERN")
+    parse.add_argument("--excludes", dest="excludes", metavar="PATTERN", nargs="+", default=[], help="排除这类文件,使用Unix shell: PATTERN")
     # parse.add_argument("--excludes-regex", dest="excludes_regex", metavar="PATTERN", nargs="+", type=exclude_regex, help="排除这类文件, 使用正则 PATTERN")
 
     # 这个工具只支持解压这些，创建时只使用zstd
@@ -159,7 +149,7 @@ def parse_args():
     parse_split = parse.add_argument_group("切割输出文件")
     parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)")
     # parse_split.add_argument("--split-filename", help="指定切割文件后缀")
-    parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 0000 ~ 9999)")
+    parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 00 开始" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 

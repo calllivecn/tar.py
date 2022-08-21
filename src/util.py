@@ -297,7 +297,7 @@ def to_file(rpipe: Pipe, fileobj: IO):
         fileobj.write(data)
     fileobj.close()
 
-# fork 节点执行完后，需要关闭向后管的管道
+# fork 节点执行完后，需要关闭向后的管道
 def to_pipe(rpipe: Pipe, wpipe: Pipe):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(data)
@@ -317,7 +317,7 @@ def split(rpipe: Pipe, splitsize: int, filename: Path):
 #################
 HASH = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b")
 def shasum(shafuncnames: Set, pipe: Pipe, outfile=Union[Path, None]):
-    print("执行了吗？", shafuncnames)
+    # print("执行了吗？", shafuncnames)
     shafuncs = []
     for funcname in sorted(shafuncnames):
         if funcname in HASH:
@@ -329,7 +329,7 @@ def shasum(shafuncnames: Set, pipe: Pipe, outfile=Union[Path, None]):
         for sha in shafuncs:
             sha.update(data)
     
-    print("怎么没输出？")
+    # print("怎么没输出？")
     for sha in shafuncs:
         print(f"{sha.hexdigest()} {sha.name}", file=sys.stderr)
 
