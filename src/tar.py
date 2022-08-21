@@ -25,7 +25,7 @@ def create(args, shafuncs):
     fork_threads = []
 
     p = util.Pipe()
-    th1 = Thread(target=util.tar2pipe, args=(args.target, p), name="tar 2 pipe", daemon=True)
+    th1 = Thread(target=util.tar2pipe, args=(args.target, p, args.verbose, args.excludes), name="tar 2 pipe", daemon=True)
     th1.start()
     pipes.append(p)
 

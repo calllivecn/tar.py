@@ -18,6 +18,7 @@ import tarfile
 import hashlib
 import threading
 from pathlib import Path
+from fnmatch import fnmatchcase
 
 
 IMPORT_ZSTD = True
@@ -234,8 +235,18 @@ def order_bad_path(tarinfo: tarfile.TarInfo):
     tarinfo.name = str(cwd)
 
 
+def filter(tarinfo, verbose=False, fs=[]):
+    for fm in fs:
+        if fnmatchcase(tarinfo.name, fm):
+            return None
+    else:
+        if verbose:
+            print(tarinfo.name, file=sys.stderr)
+        return tarinfo
+
+
 # 创建
-def tar2pipe(paths: list[Path], pipe: Pipe, filter: Union[Callable, None] = None):
+def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
     """
     处理打包路径安全:
     只使用 给出路径最右侧做为要打包的内容
@@ -246,7 +257,8 @@ def tar2pipe(paths: list[Path], pipe: Pipe, filter: Union[Callable, None] = None
             abspath = path.resolve()
             arcname = abspath.relative_to(abspath.parent)
 
-            tar.add(path, arcname, filter=filter)
+            # tar.add(path, arcname)
+            tar.add(path, arcname, filter=lambda x: filter(x, verbose, excludes))
 
     pipe.close()
 

@@ -123,8 +123,8 @@ def parse_args():
     # parse.add_argument("-v", "--verbose", action="count", help="输出详情")
     parse.add_argument("-v", "--verbose", action="store_true", help="输出详情")
 
-    parse.add_argument("--exclude", dest="exclude", metavar="PATTERN", nargs="+", type=exclude, help="排除这类文件,使用 glob: PATTERN")
-    parse.add_argument("--exclude-regex", dest="exclude_regex", metavar="PATTERN", nargs="+", type=exclude_regex, help="排除这类文件, 使用正则 PATTERN")
+    parse.add_argument("--excludes", dest="excludes", metavar="PATTERN", nargs="+", type=exclude, default=[], help="排除这类文件,使用Unix shell: PATTERN")
+    # parse.add_argument("--excludes-regex", dest="excludes_regex", metavar="PATTERN", nargs="+", type=exclude_regex, help="排除这类文件, 使用正则 PATTERN")
 
     # 这个工具只支持解压这些，创建时只使用zstd
     # group2 = parse.add_mutually_exclusive_group()
