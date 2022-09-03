@@ -25,13 +25,13 @@ def create(args, shafuncs):
     fork_threads = []
 
     p = util.Pipe()
-    th1 = Thread(target=util.tar2pipe, args=(args.target, p, args.verbose, args.excludes), name="tar 2 pipe", daemon=True)
+    th1 = Thread(target=util.tar2pipe, args=(args.target, p, args.verbose, args.excludes), name="tar 2 pipe")
     th1.start()
     pipes.append(p)
 
     if args.z:
         p2 = util.Pipe()
-        th2 = Thread(target=util.compress, args=(p, p2, args.level, args.threads), name="zstd", daemon=True)
+        th2 = Thread(target=util.compress, args=(p, p2, args.level, args.threads), name="zstd")
         th2.start()
         p = p2
         pipes.append(p)
@@ -48,7 +48,7 @@ def create(args, shafuncs):
                 print("password mismatches.")
                 sys.exit(2)
 
-        th3 = Thread(target=util.encrypt, args=(p, p3, password, args.prompt), name="encrypt", daemon=True)
+        th3 = Thread(target=util.encrypt, args=(p, p3, password, args.prompt), name="encrypt")
         th3.start()
         p = p3
         pipes.append(p)
@@ -59,11 +59,11 @@ def create(args, shafuncs):
         sha = fork.fork()
 
         # 从里把管道流分成两条
-        th_fork = Thread(target=util.to_pipe, args=(p, fork), name="to pipe", daemon=True)
+        th_fork = Thread(target=util.to_pipe, args=(p, fork), name="to pipe")
         th_fork.start()
         p = p4
 
-        th4 = Thread(target=util.shasum, args=(shafuncs, sha, args.sha_file), name="shasum", daemon=True)
+        th4 = Thread(target=util.shasum, args=(shafuncs, sha, args.sha_file), name="shasum")
         th4.start()
         fork_threads.append(th4)
         pipes.append(fork)
@@ -122,9 +122,9 @@ def extract(args):
     p = util.Pipe()
     if args.f:
         f = open(args.f.resolve(), "rb")
-        th1 = Thread(target=util.to_pipe, args=(f, p), daemon=True)
+        th1 = Thread(target=util.to_pipe, args=(f, p))
     else:
-        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p), daemon=True)
+        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p))
     
     th1.start()
     pipes.append(p)
@@ -137,7 +137,7 @@ def extract(args):
             password = getpass.getpass("Password:")
 
         p2 = util.Pipe()
-        th2 = Thread(target=util.decrypt, args=(p, p2, password), daemon=True)
+        th2 = Thread(target=util.decrypt, args=(p, p2, password))
         th2.start()
 
         p = p2
@@ -147,7 +147,7 @@ def extract(args):
     
     if args.z:
         p3 = util.Pipe()
-        th3 = Thread(target=util.decompress, args=(p, p3), daemon=True)
+        th3 = Thread(target=util.decompress, args=(p, p3))
         th3.start()
 
         p = p3
@@ -193,9 +193,9 @@ def tarlist(args):
     p = util.Pipe()
     if args.f:
         f = open(args.f.resolve(), "rb")
-        th1 = Thread(target=util.to_pipe, args=(f, p), daemon=True)
+        th1 = Thread(target=util.to_pipe, args=(f, p))
     else:
-        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p), daemon=True)
+        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p))
     
     th1.start()
     pipes.append(p)
@@ -208,7 +208,7 @@ def tarlist(args):
             password = getpass.getpass("Password:")
 
         p2 = util.Pipe()
-        th2 = Thread(target=util.decrypt, args=(p, p2, password), daemon=True)
+        th2 = Thread(target=util.decrypt, args=(p, p2, password))
         th2.start()
 
         p = p2
@@ -218,7 +218,7 @@ def tarlist(args):
     
     if args.z:
         p3 = util.Pipe()
-        th3 = Thread(target=util.decompress, args=(p, p3), daemon=True)
+        th3 = Thread(target=util.decompress, args=(p, p3))
         th3.start()
 
         p = p3
