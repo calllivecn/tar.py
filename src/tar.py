@@ -26,12 +26,14 @@ def create(args, shafuncs):
 
     p = util.Pipe()
     th1 = Thread(target=util.tar2pipe, args=(args.target, p, args.verbose, args.excludes), name="tar 2 pipe")
+    th1.daemon = True
     th1.start()
     pipes.append(p)
 
     if args.z:
         p2 = util.Pipe()
         th2 = Thread(target=util.compress, args=(p, p2, args.level, args.threads), name="zstd")
+        th2.daemon = True
         th2.start()
         p = p2
         pipes.append(p)
@@ -39,16 +41,8 @@ def create(args, shafuncs):
     if args.e:
         p3 = util.Pipe()
 
-        if args.k:
-            password = args.k
-        else:
-            password = getpass.getpass("Password:")
-            password2 = getpass.getpass("Password(again):")
-            if password != password2:
-                print("password mismatches.")
-                sys.exit(2)
-
-        th3 = Thread(target=util.encrypt, args=(p, p3, password, args.prompt), name="encrypt")
+        th3 = Thread(target=util.encrypt, args=(p, p3, args.k, args.prompt), name="encrypt")
+        th3.daemon = True
         th3.start()
         p = p3
         pipes.append(p)
@@ -64,6 +58,7 @@ def create(args, shafuncs):
         p = p4
 
         th4 = Thread(target=util.shasum, args=(shafuncs, sha, args.sha_file), name="shasum")
+        th4.daemon = True
         th4.start()
         fork_threads.append(th4)
         pipes.append(fork)
@@ -126,18 +121,15 @@ def extract(args):
     else:
         th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p))
     
+    th1.daemon = True
     th1.start()
     pipes.append(p)
     fork_threads.append(th1)
 
     if args.e:
-        if args.k:
-            password = args.k
-        else:
-            password = getpass.getpass("Password:")
-
         p2 = util.Pipe()
-        th2 = Thread(target=util.decrypt, args=(p, p2, password))
+        th2 = Thread(target=util.decrypt, args=(p, p2, args.k))
+        th2.daemon = True
         th2.start()
 
         p = p2
@@ -148,6 +140,7 @@ def extract(args):
     if args.z:
         p3 = util.Pipe()
         th3 = Thread(target=util.decompress, args=(p, p3))
+        th3.daemon = True
         th3.start()
 
         p = p3
@@ -197,18 +190,15 @@ def tarlist(args):
     else:
         th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p))
     
+    th1.daemon = True
     th1.start()
     pipes.append(p)
     fork_threads.append(th1)
 
     if args.e:
-        if args.k:
-            password = args.k
-        else:
-            password = getpass.getpass("Password:")
-
         p2 = util.Pipe()
-        th2 = Thread(target=util.decrypt, args=(p, p2, password))
+        th2 = Thread(target=util.decrypt, args=(p, p2, args.k))
+        th2.daemon = True
         th2.start()
 
         p = p2
@@ -219,6 +209,7 @@ def tarlist(args):
     if args.z:
         p3 = util.Pipe()
         th3 = Thread(target=util.decompress, args=(p, p3))
+        th3.daemon = True
         th3.start()
 
         p = p3
@@ -275,6 +266,18 @@ def main():
     if args.sha_all:
         shafuncs |= set(("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b"))
     
+    if args.e:
+        if args.k:
+            password = args.k
+        else:
+            password = getpass.getpass("Password:")
+            if args.c:
+                password2 = getpass.getpass("Password(again):")
+                if password != password2:
+                    print("password mismatches.")
+                    sys.exit(2)
+        args.k = password
+
     # 创建archive
     if args.c:
         if args.C:
@@ -283,6 +286,7 @@ def main():
         if len(args.target) == 0:
             print(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件", file=sys.stderr)
             sys.exit(1)
+
         create(args, shafuncs)
 
     elif args.x:
