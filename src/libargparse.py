@@ -136,7 +136,7 @@ def parse_args():
 
     parse_hash = parse.add_argument_group("计算输出文件的sha值")
     # parse_hash.add_argument(dest="shafuncs", default=set(), help=argparse.SUPPRESS)
-    parse_hash.add_argument("--sha-file", dest="sha_file", metavar="FILENAME", action="store", help="哈希值输出到文件(default: stderr)")
+    parse_hash.add_argument("--sha-file", dest="sha_file", metavar="FILENAME", action="store", type=Path, help="哈希值输出到文件(default: stderr)")
     parse_hash.add_argument("--md5", action="store_true", help="下载同时计算 md5")
     parse_hash.add_argument("--sha1", action="store_true", help="下载同时计算 sha1")
     parse_hash.add_argument("--sha224", action="store_true", help="下载同时计算 sha224")

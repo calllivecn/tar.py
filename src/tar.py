@@ -275,11 +275,11 @@ def main():
     if args.sha_all:
         shafuncs |= set(("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b"))
     
-    if args.C:
-        os.chdir(args.C)
-
     # 创建archive
     if args.c:
+        if args.C:
+            os.chdir(args.C)
+
         if len(args.target) == 0:
             print(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件", file=sys.stderr)
             sys.exit(1)

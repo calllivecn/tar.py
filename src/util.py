@@ -333,10 +333,10 @@ def shasum(shafuncnames: Set, pipe: Pipe, outfile=Union[Path, None]):
     for sha in shafuncs:
         print(f"{sha.hexdigest()} {sha.name}", file=sys.stderr)
 
-    if outfile is Path:
+    if isinstance(outfile, Path):
         with open(outfile, "w") as f:
             for sha in shafuncs:
-                f.write(f"{sha.hexdigest()} \t {sha.name}")
+                f.write(f"{sha.hexdigest()}\t{sha.name}\n")
 
 
 
