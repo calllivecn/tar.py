@@ -6,3 +6,4 @@ __pycache__/
 *.xz
 *.gz
 *.tar
+*.pyz
