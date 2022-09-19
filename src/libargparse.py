@@ -74,12 +74,11 @@ Description='''\
 POXIS tar 工具
 
 例子:
-    {0} -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
-    {0} -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
-    {0} -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
-    {0} -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
-'''.format(sys.argv[0])
-
+    %(prog)s -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
+    %(prog)s -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
+    %(prog)s -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
+    %(prog)s -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
+'''
 
 def parse_args():
 
