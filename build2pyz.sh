@@ -1,23 +1,18 @@
 #!/bin/bash
-# date 2020-06-07 07:08:55
+# date 2019-07-24 14:59:46
 # author calllivecn <c-all@qq.com>
 
-CWD=$(pwd -P)
-TMP=$(mktemp -d -p "$CWD")
+set -e
 
-NAME="tar"
-EXT=".pyz"
-
-pip3 install --no-compile -r src/requirements.txt --target "${TMP}" 
-
-clean(){
-	echo "clean... ${TMP}"
-	rm -rf "${TMP}"
-	echo "done"
+exit_clear(){
+	rm -rf "$1"
 }
 
-trap clean SIGINT SIGTERM EXIT ERR
+temp=$(mktemp -d)
 
-cp -rv src/*.py "$TMP"
+trap "exit_clear" SIGINT SIGTERM ERR EXIT
 
-shiv --site-packages "$TMP" --compressed -p '/usr/bin/python -sE' -o "${NAME}.pyz" -e tar:main
+cp -v src/*.py "$temp"
+
+python3 -m zipapp "$temp" -c -m "tar:main" -o tar-nodepend.pyz -p "/usr/bin/env python3"
+

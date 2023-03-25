@@ -9,7 +9,7 @@ tar.pyz -tvf archive.tar                # 列出 archive.tar 里面的文件，-
 tar.pyz -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
 ```
 
-## 用法
+## 详细用法
 
 ```shell
 usage: tar.pyz [option] [file ... or directory ...]
@@ -21,6 +21,9 @@ POXIS tar 工具
     tar.pyz -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
     tar.pyz -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
     tar.pyz -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
+    tar.pyz -ecf archive.tar                # 打包 archive.tar 后同时加密。
+    tar.pyz -ezcf archive.tar.zst           # 打包 archive.tar.zst 后同时加密。
+    tar.pyz --info archive.ta               # 查看提示信息,如果有的话。
 
 位置参数:
   target                文件s | 目录s
@@ -50,7 +53,7 @@ POXIS tar 工具
 
   -e                    加密
   -k PASSWORK           指定密码 (default：启动后交互式输入)
-  --prompt PROMPT       密码提示信息
+  --info INFO           查看提示信息
 
 计算输出文件的sha值:
   --sha-file FILENAME   哈希值输出到文件(default: stderr)
@@ -67,5 +70,5 @@ POXIS tar 工具
   --split SPLIT         单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)
   --suffix SUFFIX       指定切割文件后缀(default: 00 开始
 
-Author: calllivecn <c-all@qq.com>, Version: 0.9.2 Repositories: https://github.com/calllivecn/tar.py
+Author: calllivecn <c-all@qq.com>, Version: 0.9.5 Repositories: https://github.com/calllivecn/tar.py
 ```
