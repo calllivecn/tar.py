@@ -294,9 +294,16 @@ def main():
 
     elif args.list:
         tarlist(args)
+    
+    elif args.info:
+        try:
+            util.prompt(args.info)
+        except Exception:
+            print(f"不是加密文件或文件损坏")
+            sys.exit(1)
 
     else:
-        print("-c|-x|-t 参数之一是必须的")
+        print("-c|-x|-t|--info 参数之一是必须的")
         sys.exit(1)
 
 

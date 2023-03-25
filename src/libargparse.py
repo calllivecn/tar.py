@@ -76,6 +76,10 @@ POXIS tar 工具
     %(prog)s -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
     %(prog)s -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
     %(prog)s -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
+    %(prog)s -ecf archive.tar                # 打包 archive.tar 后同时加密。
+    %(prog)s -ezcf archive.tar.zst           # 打包 archive.tar.zst 后同时加密。
+    %(prog)s --info archive.ta               # 查看提示信息,如果有的话。
+
 '''
 
 def parse_args():
@@ -94,7 +98,7 @@ def parse_args():
     parse.add_argument("-h", "--help", action="store_true", help="输出帮助信息")
 
     parse.add_argument("-f", type=Path, help="archive 文件, 没有这参数时，默认使用标准输入输出。")
-    parse.add_argument("-C", type=target_exists, help="更改目录(default: .)")
+    parse.add_argument("-C", type=target_exists, default=".", help="更改目录(default: .)")
 
     # 从标准输入读取
     # parse.add_argument("--stdin", action="store_true", help="从标准输入读取")
@@ -129,7 +133,7 @@ def parse_args():
     parse_encrypt.add_argument("-e", action="store_true", help="加密")
     parse_encrypt.add_argument("-k", type=str, metavar="PASSWORK", action="store", help="指定密码 (default：启动后交互式输入)")
     # parse_encrypt.add_argument("-d", action="store_true", help="解密")
-    parse_encrypt.add_argument("--prompt", help="密码提示信息")
+    parse_encrypt.add_argument("--info", type=target_exists, help="查看提示信息")
 
     parse_hash = parse.add_argument_group("计算输出文件的sha值")
     # parse_hash.add_argument(dest="shafuncs", default=set(), help=argparse.SUPPRESS)

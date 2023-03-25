@@ -14,6 +14,7 @@ from typing import (
 
 import os
 import sys
+import platform
 import tarfile
 import hashlib
 import threading
@@ -42,14 +43,22 @@ BLOCKSIZE = 1 << 21 # 2M
 
 
 def cpu_physical() -> int:
-    with open("/proc/cpuinfo") as f:
-        while (line := f.readline()) != "":
-            if "cpu cores" in line:
-                count = line.strip("\n")
-                break
+    OS = platform.system().lower()
+    if OS == "windows":
+        return os.cpu_count()
 
-    _, cores = count.split(":")
-    return int(cores.strip())
+    elif OS == "linux":
+        with open("/proc/cpuinfo") as f:
+            while (line := f.readline()) != "":
+                if "cpu cores" in line:
+                    count = line.strip("\n")
+                    break
+
+        _, cores = count.split(":")
+        return int(cores.strip())
+
+    else:
+        return os.cpu_count()
 
 
 # tarfile.open() 需要 fileobj 需要包装一下。
@@ -147,6 +156,10 @@ def encrypt(rpipe: Pipe, wpipe:Pipe, password, prompt):
 def decrypt(rpipe: Pipe, wpipe:Pipe, password):
     libcrypto.decrypt(rpipe, wpipe, password)
     wpipe.close()
+
+# 查看加密提示信息
+def prompt(path: Path):
+    libcrypto.fileinfo(path)
 
 ##################
 # tar 相关处理函数
