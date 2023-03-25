@@ -240,7 +240,7 @@ def main():
         sys.exit(0)
 
     # hash 算计
-    shafuncs = set()
+    shafuncs = {"sha256"}
     # shafuncs = args.shafuncs # 初步尝试不行
     if args.md5:
         shafuncs |= {"md5"}
