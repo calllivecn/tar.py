@@ -4,13 +4,11 @@
 # https://github.com/calllivecn
 
 
-import re
-import sys
-import glob
 import argparse
 from pathlib import Path
 
 import util
+import version
 
 class Argument(argparse.ArgumentParser):
 
@@ -85,7 +83,7 @@ def parse_args():
     parse = Argument(
         usage="%(prog)s [option] [file ... or directory ...]",
         description=Description,
-        epilog="Author: calllivecn <c-all@qq.com>, Repositories: https://github.com/calllivecn/tar.py",
+        epilog=f"Author: calllivecn <c-all@qq.com>, Version: {version.VERSION} Repositories: https://github.com/calllivecn/tar.py",
         add_help=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
@@ -136,14 +134,15 @@ def parse_args():
     parse_hash = parse.add_argument_group("计算输出文件的sha值")
     # parse_hash.add_argument(dest="shafuncs", default=set(), help=argparse.SUPPRESS)
     parse_hash.add_argument("--sha-file", dest="sha_file", metavar="FILENAME", action="store", type=Path, help="哈希值输出到文件(default: stderr)")
-    parse_hash.add_argument("--md5", action="store_true", help="下载同时计算 md5")
-    parse_hash.add_argument("--sha1", action="store_true", help="下载同时计算 sha1")
-    parse_hash.add_argument("--sha224", action="store_true", help="下载同时计算 sha224")
-    parse_hash.add_argument("--sha256", action="store_true", help="下载同时计算 default: sha256")
-    parse_hash.add_argument("--sha384", action="store_true", help="下载同时计算 sha384")
-    parse_hash.add_argument("--sha512", action="store_true", help="下载同时计算 sha512")
-    parse_hash.add_argument("--blake2b", action="store_true", help="下载同时计算 blake2b")
-    parse_hash.add_argument("--sha-all", action="store_true", help="计算下列所有哈希值")
+    parse_hash.add_argument("--md5", action="store_true", help="输出文件同时计算 md5")
+    parse_hash.add_argument("--sha1", action="store_true", help="输出文件同时计算 sha1")
+    parse_hash.add_argument("--sha224", action="store_true", help="输出文件同时计算 sha224")
+    # parse_hash.add_argument("--sha256", action="store_true", help="输出文件同时计算 default: sha256")
+    parse_hash.add_argument("--sha256", action="store_true", default=True, help="输出文件同时计算 default: sha256")
+    parse_hash.add_argument("--sha384", action="store_true", help="输出文件同时计算 sha384")
+    parse_hash.add_argument("--sha512", action="store_true", help="输出文件同时计算 sha512")
+    parse_hash.add_argument("--blake2b", action="store_true", help="输出文件同时计算 blake2b")
+    parse_hash.add_argument("--sha-all", action="store_true", help="计算所有哈希值")
 
     parse_split = parse.add_argument_group("切割输出文件")
     parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)")

@@ -20,4 +20,4 @@ trap clean SIGINT SIGTERM EXIT ERR
 
 cp -rv src/*.py "$TMP"
 
-shiv --site-packages "$TMP" --compressed -p '/usr/bin/python3 -sE' -o "${NAME}.pyz" -e tar:main
+shiv --site-packages "$TMP" --compressed -p '/usr/bin/python -sE' -o "${NAME}.pyz" -e tar:main
