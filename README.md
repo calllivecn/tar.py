@@ -54,14 +54,18 @@ POXIS tar 工具
 
 计算输出文件的sha值:
   --sha-file FILENAME   哈希值输出到文件(default: stderr)
-  --md5                 下载同时计算 md5
-  --sha1                下载同时计算 sha1
-  --sha224              下载同时计算 sha224
-  --sha256              下载同时计算 default: sha256
-  --sha384              下载同时计算 sha384
-  --sha512              下载同时计算 sha512
-  --blake2b             下载同时计算 blake2b
-  --sha-all             计算下列所有哈希值
+  --md5                 输出文件同时计算 md5
+  --sha1                输出文件同时计算 sha1
+  --sha224              输出文件同时计算 sha224
+  --sha256              输出文件同时计算 default: sha256
+  --sha384              输出文件同时计算 sha384
+  --sha512              输出文件同时计算 sha512
+  --blake2b             输出文件同时计算 blake2b
+  --sha-all             计算所有哈希值
 
-Author: calllivecn <c-all@qq.com>, Repositories: https://github.com/calllivecn/tar.py
+切割输出文件:
+  --split SPLIT         单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)
+  --suffix SUFFIX       指定切割文件后缀(default: 00 开始
+
+Author: calllivecn <c-all@qq.com>, Version: 0.9.2 Repositories: https://github.com/calllivecn/tar.py
 ```
