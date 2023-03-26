@@ -133,6 +133,7 @@ def parse_args():
     parse_encrypt.add_argument("-e", action="store_true", help="加密")
     parse_encrypt.add_argument("-k", type=str, metavar="PASSWORK", action="store", help="指定密码 (default：启动后交互式输入)")
     # parse_encrypt.add_argument("-d", action="store_true", help="解密")
+    parse_encrypt.add_argument("--prompt", help="密码提示信息")
     parse_encrypt.add_argument("--info", type=target_exists, help="查看提示信息")
 
     parse_hash = parse.add_argument_group("计算输出文件的sha值")
