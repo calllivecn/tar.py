@@ -14,7 +14,6 @@ from typing import (
 
 import os
 import sys
-import platform
 import tarfile
 import hashlib
 import threading
@@ -27,7 +26,7 @@ try:
     # import zstd 这个库太简单了，不方便。改为使用 pyzstd
     from pyzstd import (
         CParameter,
-        DParameter,
+        # DParameter,
         ZstdCompressor,
         ZstdDecompressor,
     )
@@ -43,22 +42,39 @@ BLOCKSIZE = 1 << 21 # 2M
 
 
 def cpu_physical() -> int:
+    """
+    原来的方法，不好跨平台。
+    """
+    use, _ = divmod(os.cpu_count(), 2)
+    if use <= 1:
+        return 1
+    else:
+        return use
+
+    """
+    import platform
+
     OS = platform.system().lower()
     if OS == "windows":
         return os.cpu_count()
 
     elif OS == "linux":
+        # 不太行。。 改为默认使用一半核心
         with open("/proc/cpuinfo") as f:
             while (line := f.readline()) != "":
                 if "cpu cores" in line:
                     count = line.strip("\n")
                     break
+                else:
+                    # 没有 cpu cores 字段
+                    return
 
         _, cores = count.split(":")
         return int(cores.strip())
 
     else:
         return os.cpu_count()
+    """
 
 
 # tarfile.open() 需要 fileobj 需要包装一下。
