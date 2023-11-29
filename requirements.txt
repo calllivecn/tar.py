@@ -1,2 +1,2 @@
-cryptography==41.0.4
+cryptography==41.0.6
 pyzstd==0.15.7
