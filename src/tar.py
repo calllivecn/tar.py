@@ -106,11 +106,17 @@ def extract(args):
         sys.exit(0)
 
     # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
-    suffixs = args.f.suffixes
-    suffix = "".join(suffixs)
     NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
-    if suffix not in NEWTARS:
-        raise tarfile.ReadError(f"未知格式文件")
+    # 需要查看 str.endswith()
+    suffix = str(args.f)
+    suffix_flag = False
+    for suffixname in NEWTARS:
+        if suffix.endswith(suffixname):
+            suffix_flag = True
+            break
+
+    if not suffix_flag:
+        raise tarfile.ReadError(f"未知格式文件...目前支持的文件后缀{NEWTARS}")
 
     pipes = []
     fork_threads = []
