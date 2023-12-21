@@ -8,7 +8,7 @@ TMP=$(mktemp -d -p "$CWD")
 NAME="tar"
 EXT=".pyz"
 
-pip3 install --no-compile -r src/requirements.txt --target "${TMP}" 
+pip install --no-compile -r requirements.txt --target "${TMP}" 
 
 clean(){
 	echo "clean... ${TMP}"
