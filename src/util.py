@@ -7,6 +7,7 @@ from typing import (
     IO,
     BinaryIO,
     Set,
+    List,
     Union,
     Callable,
 )
@@ -275,7 +276,7 @@ def filter(tarinfo, verbose=False, fs=[]):
 
 
 # 创建
-def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
+def tar2pipe(paths: List[Path], pipe: Pipe, verbose, excludes: List = []):
     """
     处理打包路径安全:
     只使用 给出路径最右侧做为要打包的内容
