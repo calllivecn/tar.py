@@ -1,6 +1,5 @@
 name: windows 10 打包工作流
 
-
 on:
   push:
     branches:
@@ -31,3 +30,12 @@ jobs:
           name: tar-win10.pyz
           path: dist/tar.pyz.exe
 
+  # AI 给出的，还没测试
+  # release:
+  #   runs-on: windows-2019
+  #   needs: mc_fishing_opencv
+  #   steps:
+  #     - uses: actions/upload-artifact@v2
+  #       with:
+  #         artifact: target/my-app.jar
+  #         release: v1.0.0
