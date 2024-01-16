@@ -144,6 +144,9 @@ def extract(args):
         fork_threads.append(th2)
     
     if args.z:
+        if not util.IMPORT_ZSTD:
+            raise ModuleNotFoundError("pip install pyzstd.")
+
         p3 = util.Pipe()
         th3 = Thread(target=util.decompress, args=(p, p3))
         th3.daemon = True
