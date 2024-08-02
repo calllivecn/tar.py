@@ -99,7 +99,7 @@ class Pipe:
 
 
 class Pipefork:
-    """
+    r"""
                  / --> read(stream1, size)
     write() --> |
                  \ --> read(stream2, size)
