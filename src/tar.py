@@ -63,13 +63,13 @@ def create(args, shafuncs):
         fork_threads.append(th4)
         pipes.append(fork)
 
-    """
+
     if args.split:
-        p2 = util.Pipe()
-        th2 = Thread(target=util.split, args=(p1, p2, args.level, args.T), daemon=True)
-        th2.start()
-        p2.close()
-    """
+        p5 = util.Pipe()
+        th5 = Thread(target=util.split, args=(p, args.split, args.f), name="split")
+        th5.daemon = True
+        th5.start()
+        p5.close()
 
     
     # 最后写入到文件, 还需要处理到标准输出
@@ -82,6 +82,9 @@ def create(args, shafuncs):
 
     [ th.join() for th in fork_threads]
     [ p.close2() for p in pipes]
+
+    if not f.isatty():
+        f.close()
 
 
 def extract(args):
@@ -235,6 +238,10 @@ def tarlist(args):
 
     [th.join() for th in fork_threads]
     [p.close2() for p in pipes]
+
+    if not f.isatty():
+        f.close()
+
 
 
 def main():

@@ -4,6 +4,7 @@
 # author calllivecn <calllivecn@outlook.com>
 
 from typing import (
+    Self,
     IO,
     BinaryIO,
     Set,
@@ -18,6 +19,7 @@ import sys
 import tarfile
 import hashlib
 import threading
+from queue import Queue
 from pathlib import Path
 from fnmatch import fnmatchcase
 
@@ -81,9 +83,16 @@ def cpu_physical() -> int:
 # tarfile.open() 需要 fileobj 需要包装一下。
 # pipe 是两个FD 需要 关闭两次, 写关闭时: read() -> b""
 class Pipe:
+    """
+    pipe: True 使用 so.pipe() 管道
+    pipe: False 时，使用队列。queue.Queue
+    """
 
-    def __init__(self):
-        self.r, self.w = os.pipe()
+    def __init__(self, pipe: bool = True):
+        if pipe:
+            self.r, self.w = os.pipe()
+        else:
+            self.q = Queue(32)
     
     def read(self, size: int) -> bytes:
         return os.read(self.r, size)
@@ -112,7 +121,7 @@ class Pipefork:
         """
         fork >=2, 看着可以和pipe 功能合并。
         """
-        self.pipes = []
+        self.pipes = List[BinaryIO]
     
     def fork(self) -> Pipe:
         pipe = Pipe()
@@ -333,13 +342,16 @@ def to_pipe(rpipe: Pipe, wpipe: Pipe):
         wpipe.write(data)
     wpipe.close()
 
+
 #################
-# split 计算
+# split 切割
 #################
 
 def split(rpipe: Pipe, splitsize: int, filename: Path):
+
+    split_ptr = 0
     while (data := rpipe.read(BLOCKSIZE)) != b"":
-        pass
+        split_ptr += len(data)
 
 
 #################

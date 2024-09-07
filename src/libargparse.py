@@ -87,7 +87,7 @@ def parse_args():
     parse = Argument(
         usage="%(prog)s [option] [file ... or directory ...]",
         description=Description,
-        epilog=f"Author: calllivecn <c-all@qq.com>, Version: {version.VERSION} Repositories: https://github.com/calllivecn/tar.py",
+        epilog=f"Author: calllivecn <calllivecn@outlook.com>, Version: {version.VERSION} Repositories: https://github.com/calllivecn/tar.py",
         add_help=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
