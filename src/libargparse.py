@@ -152,7 +152,7 @@ def parse_args():
     parse_split = parse.add_argument_group("切割输出文件")
     parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)")
     # parse_split.add_argument("--split-filename", help="指定切割文件后缀")
-    parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 00 开始" )
+    parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 00 开始)" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 
