@@ -14,6 +14,12 @@ class MainTestCase(unittest.TestCase):
     def test_version(self):
         self.assertTrue(hasattr(version, "VERSION"), True)
     
+
+    
+    def test_tar(self):
+        """test tar -vcf t.tar <dir>"""
+        pass
+    
     def test_pass(self):
         pass
 

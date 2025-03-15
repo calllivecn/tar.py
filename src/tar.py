@@ -7,6 +7,7 @@
 
 import os
 import sys
+import logging
 import getpass
 import tarfile
 from threading import Thread
@@ -16,6 +17,21 @@ import util
 from libargparse import (
     parse_args,
 )
+
+
+def getlogger(level=logging.INFO):
+    fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
+    # stream = logging.StreamHandler(sys.stdout)
+    stream = logging.StreamHandler(sys.stderr)
+    stream.setFormatter(fmt)
+    logger = logging.getLogger("AES")
+    logger.setLevel(level)
+    logger.addHandler(stream)
+    return logger
+
+
+logger = getlogger()
+
 
 def create(args, shafuncs):
     # 收集关闭read的close2()。
@@ -94,42 +110,38 @@ def extract(args):
     2. gz, z2, xz 文件和新的zst|zst+aes。
     """
 
-    pytar = True
+    if args.f:
+        f = open(args.f.resolve(), "rb")
+    else:
+        f = sys.stdin.buffer
+
     # 从文件提取
-    try:
-        if args.f:
-            util.extract(args.f.resolve(), args.C, args.verbose, args.safe_extract)
-        else:
-            util.extract(sys.stdin.buffer, args.C, args.verbose, args.safe_extract)
-    except tarfile.ReadError:
-        pytar = False
-    
-    
-    if pytar:
-        sys.exit(0)
+    if not args.e:
+        try:
+            util.extract(f, args.C, args.verbose, args.safe_extract)
+        except tarfile.ReadError:
+            logger.warning(f"{f}: 不是一个tar文件")
+            sys.exit(0)
 
     # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
     NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
     # 需要查看 str.endswith()
-    suffix = str(args.f)
-    suffix_flag = False
-    for suffixname in NEWTARS:
-        if suffix.endswith(suffixname):
-            suffix_flag = True
-            break
+    if not args.e:
+        if args.f:
+            suffix = str(args.f)
+            suffix_flag = False
+            for suffixname in NEWTARS:
+                if suffix.endswith(suffixname):
+                    suffix_flag = True
+                    break
 
-    if not suffix_flag:
-        raise tarfile.ReadError(f"未知格式文件...目前支持的文件后缀{NEWTARS}")
+            if not suffix_flag:
+                raise tarfile.ReadError(f"未知格式文件...目前支持的文件后缀{NEWTARS}")
 
     pipes = []
     fork_threads = []
     p = util.Pipe()
-    if args.f:
-        f = open(args.f.resolve(), "rb")
-        th1 = Thread(target=util.to_pipe, args=(f, p))
-    else:
-        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p))
-    
+    th1 = Thread(target=util.to_pipe, args=(f, p))
     th1.daemon = True
     th1.start()
     pipes.append(p)
@@ -170,15 +182,21 @@ def extract(args):
     [th.join() for th in fork_threads]
     [p.close2() for p in pipes]
 
+    if f is not sys.stdin.buffer:
+        f.close()
+
 
 def tarlist(args):
+
+    if args.f:
+        f = open(args.f.resolve(), "rb")
+    else:
+        f = sys.stdin.buffer
+
     pytar = True
     # 从文件提取
     try:
-        if args.f:
-            util.tarlist(args.f.resolve(), args.C, args.verbose)
-        else:
-            util.tarlist(sys.stdin.buffer, args.C, args.verbose)
+        util.tarlist(f, args.C, args.verbose)
     except tarfile.ReadError:
         pytar = False
     
@@ -239,7 +257,7 @@ def tarlist(args):
     [th.join() for th in fork_threads]
     [p.close2() for p in pipes]
 
-    if not f.isatty():
+    if f is not sys.stdin.buffer:
         f.close()
 
 
@@ -254,6 +272,10 @@ def main():
     if args.parse:
         print(args)
         sys.exit(0)
+    
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
 
     # hash 算计
     shafuncs = {"sha256"}

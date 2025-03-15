@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='tar',
+    name='tarpy',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,

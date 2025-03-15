@@ -31,19 +31,7 @@ version = "v1.2.0"
 
 BLOCK = 1 << 20  # 1M 读取文件块大小
 
-def getlogger(level=logging.INFO):
-    fmt = logging.Formatter(
-        "%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
-    stream = logging.StreamHandler(sys.stdout)
-    stream.setFormatter(fmt)
-    logger = logging.getLogger("AES")
-    logger.setLevel(level)
-    logger.addHandler(stream)
-    return logger
-
-
-logger = getlogger()
-
+logger = logging.getLogger("AES")
 
 class PromptTooLong(Exception):
     pass

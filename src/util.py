@@ -15,6 +15,7 @@ import os
 import sys
 import tarfile
 import hashlib
+import logging
 import threading
 from queue import Queue
 from pathlib import Path
@@ -35,6 +36,10 @@ except ModuleNotFoundError:
 
 
 import libcrypto
+
+logger = logging.getLogger("AES")
+
+
 
 # zstd 的标准压缩块大小是256K , 按 pyzstd 文档里写的使用2MB块
 # pipe buf size
