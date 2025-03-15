@@ -4,12 +4,9 @@
 # author calllivecn <calllivecn@outlook.com>
 
 from typing import (
-    Self,
     IO,
+    Optional,
     BinaryIO,
-    Set,
-    List,
-    Union,
     Callable,
 )
 
@@ -121,10 +118,10 @@ class Pipefork:
         """
         fork >=2, 看着可以和pipe 功能合并。
         """
-        self.pipes = List[BinaryIO]
+        self.pipes: list[BinaryIO] = []
     
     def fork(self) -> Pipe:
-        pipe = Pipe()
+        pipe: Pipe = Pipe()
         self.pipes.append(pipe)
         return pipe
     
@@ -138,6 +135,7 @@ class Pipefork:
             pipe.close()
 
     def close2(self):
+        pipe: Pipe
         for pipe in self.pipes:
             pipe.close2()
 
@@ -192,7 +190,7 @@ def prompt(path: Path):
 ##################
 
 
-def extract(readable: Union[Path, BinaryIO], path: Path, verbose=False, safe_extract=False):
+def extract(readable: Path | BinaryIO, path: Path, verbose=False, safe_extract=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
     """
@@ -236,7 +234,7 @@ def extract(readable: Union[Path, BinaryIO], path: Path, verbose=False, safe_ext
         raise ValueError("参数错误")
 
 
-def tarlist(readable: Union[Path, BinaryIO], path: Path, verbose=False):
+def tarlist(readable: Path | BinaryIO, path: Path, verbose=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
     """
@@ -285,7 +283,7 @@ def filter(tarinfo, verbose=False, fs=[]):
 
 
 # 创建
-def tar2pipe(paths: List[Path], pipe: Pipe, verbose, excludes: List = []):
+def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
     """
     处理打包路径安全:
     只使用 给出路径最右侧做为要打包的内容
@@ -358,7 +356,7 @@ def split(rpipe: Pipe, splitsize: int, filename: Path):
 # hash 计算
 #################
 HASH = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b")
-def shasum(shafuncnames: Set, pipe: Pipe, outfile=Union[Path, None]):
+def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
     # print("执行了吗？", shafuncnames)
     shafuncs = []
     for funcname in sorted(shafuncnames):
@@ -367,6 +365,7 @@ def shasum(shafuncnames: Set, pipe: Pipe, outfile=Union[Path, None]):
         else:
             raise ValueError(f"只支持 {HASH} 算法")
 
+    sha: hashlib._Hash
     while (data := pipe.read(BLOCKSIZE)) != b"":
         for sha in shafuncs:
             sha.update(data)
