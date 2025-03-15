@@ -83,12 +83,9 @@ def create(args, shafuncs):
     [ th.join() for th in fork_threads]
     [ p.close2() for p in pipes]
 
-    if not f.closed:
+    if f is not sys.stdout.buffer:
         f.close()
 
-    # if not f.isatty():
-        # f.close()
-    
 
 def extract(args):
     """

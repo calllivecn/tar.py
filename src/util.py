@@ -329,10 +329,9 @@ def pipe2tarlist(pipe: Pipe, path: Path, verbose=False):
 #################
 
 def to_file(rpipe: Pipe, fileobj: IO):
-    # with open(filename, "wb") as f:
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
-    fileobj.close()
+    # fileobj.close()
 
 # fork 节点执行完后，需要关闭向后的管道
 def to_pipe(rpipe: Pipe, wpipe: Pipe):
