@@ -7,11 +7,11 @@ from typing import (
     IO,
     Optional,
     BinaryIO,
-    Callable,
 )
 
 
 import os
+import io
 import sys
 import tarfile
 import hashlib
@@ -104,6 +104,8 @@ class Pipe:
     
     def close(self):
         os.close(self.w)
+    
+    def close2(self):
         os.close(self.r)
 
 
@@ -138,6 +140,11 @@ class Pipefork:
         for pipe in self.pipes:
             pipe.close()
 
+    def close2(self):
+        pipe: Pipe
+        for pipe in self.pipes:
+            pipe.close2()
+
 
 ##################
 # compress 相关处理函数
@@ -151,11 +158,14 @@ def compress(rpipe: Pipe, wpipe: Pipe, level: int, threads: int):
         }
 
     Zst = ZstdCompressor(level_or_option=op)
+    logger.debug(f"压缩等级: {level}, 线程数: {threads}")
     while (tar_data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(Zst.compress(tar_data))
+        logger.debug(f"压缩数据大小: {len(tar_data)}")
     wpipe.write(Zst.flush())
 
     logger.debug("压缩完成")
+    wpipe.close()
 
 
 def decompress(rpipe: Pipe, wpipe: Pipe):
@@ -164,6 +174,7 @@ def decompress(rpipe: Pipe, wpipe: Pipe):
     while (zst_data := rpipe.read(BLOCKSIZE)) != b"":
         tar_data = zst.decompress(zst_data)
         wpipe.write(tar_data)
+    wpipe.close()
 
 ##################
 # crypto 相关处理函数
@@ -172,10 +183,12 @@ def decompress(rpipe: Pipe, wpipe: Pipe):
 def encrypt(rpipe: Pipe, wpipe:Pipe, password, prompt):
     aes = libcrypto.AESCrypto(password)
     aes.encrypt(rpipe, wpipe, prompt)
+    wpipe.close()
 
 def decrypt(rpipe: Pipe, wpipe:Pipe, password):
     aes = libcrypto.AESCrypto(password)
     aes.decrypt(rpipe, wpipe)
+    wpipe.close()
 
 # 查看加密提示信息
 def prompt(path: Path):
@@ -230,7 +243,7 @@ def extract(readable: Path | BinaryIO, path: Path, verbose=False, safe_extract=F
         raise ValueError("参数错误")
 
 
-def tarlist(readable: Path | BinaryIO, path: Path, verbose=False):
+def tarlist(readable: Path | BinaryIO | io.BufferedReader, verbose=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
     """
@@ -238,7 +251,7 @@ def tarlist(readable: Path | BinaryIO, path: Path, verbose=False):
         with tarfile.open(readable, mode="r:*") as tar:
                 tar.list(verbose)
 
-    elif isinstance(readable, BinaryIO):
+    elif isinstance(readable, BinaryIO) or isinstance(readable, io.BufferedReader):
         # 从标准输入提取
         with tarfile.open(mode="r|*", fileobj=readable) as tar:
             while (tarinfo := tar.next()) is not None:
@@ -294,6 +307,7 @@ def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
             tar.add(path, arcname, filter=lambda x: filter(x, verbose, excludes))
     
     logger.debug(f"打包完成: {paths}")
+    pipe.close()
 
 
 # 提取 zst
@@ -315,7 +329,7 @@ def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
             tar.extract(tarinfo, path)
 
 
-def pipe2tarlist(pipe: Pipe, path: Path, verbose=False):
+def pipe2tarlist(pipe: Pipe, verbose=False):
     with tarfile.open(mode="r|", fileobj=pipe) as tar:
         tar.list(verbose)
 
@@ -327,13 +341,16 @@ def pipe2tarlist(pipe: Pipe, path: Path, verbose=False):
 def to_file(rpipe: Pipe, fileobj: IO):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
-    
     logger.debug("to_file() 写入完成")
 
-# fork 节点执行完后，需要关闭向后的管道
+
+
+
 def to_pipe(rpipe: Pipe, wpipe: Pipe):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(data)
+    wpipe.close()
+    logger.debug("to_pipe() 写入完成")
 
 
 #################
@@ -422,7 +439,7 @@ class ThreadManager:
         """
         pipe: Pipe
         for pipe in self.pipes:
-            pipe.close()
+            pipe.close2()
 
     def run_pipeline(self, tasks):
         """

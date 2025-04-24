@@ -179,10 +179,13 @@ def fileinfo(filename):
 
     except ValueError as e:
         logger.error(f"无法解析文件头：{e}")
+        raise e
     except FileNotFoundError:
         logger.error(f"文件未找到：{filename}")
+        raise e
     except Exception as e:
         logger.error(f"读取文件信息时发生错误：{e}")
+        raise e
 
 
 class AESCrypto:

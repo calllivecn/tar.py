@@ -80,6 +80,8 @@ POXIS tar 工具
     %(prog)s -ezcf archive.tar.zst           # 打包 archive.tar.zst 后同时加密。
     %(prog)s --info archive.ta               # 查看提示信息,如果有的话。
 
+    使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
+
 '''
 
 def parse_args():
@@ -103,7 +105,7 @@ def parse_args():
     # 从标准输入读取
     # parse.add_argument("--stdin", action="store_true", help="从标准输入读取")
     # parse.add_argument("--stdout", action="store_true", help="输出到标准输出")
-    parse.add_argument("-O", action="store_true", help="解压文件至标准输出")
+    parse.add_argument("-O", action="store_true", default=False, help="解压文件至标准输出")
 
     group1 = parse.add_mutually_exclusive_group()
     group1.add_argument("-c", action="store_true", help="创建tar文件")
@@ -134,7 +136,7 @@ def parse_args():
     parse_encrypt.add_argument("-k", type=str, metavar="PASSWORK", action="store", help="指定密码 (default：启动后交互式输入)")
     # parse_encrypt.add_argument("-d", action="store_true", help="解密")
     parse_encrypt.add_argument("--prompt", help="密码提示信息")
-    parse_encrypt.add_argument("--info", type=target_exists, help="查看提示信息")
+    parse_encrypt.add_argument("--info", type=target_exists, help="查看加密提示信息")
 
     parse_hash = parse.add_argument_group("计算输出文件的sha值")
     # parse_hash.add_argument(dest="shafuncs", default=set(), help=argparse.SUPPRESS)
@@ -150,7 +152,7 @@ def parse_args():
     parse_hash.add_argument("--sha-all", action="store_true", help="计算所有哈希值")
 
     parse_split = parse.add_argument_group("切割输出文件")
-    parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)")
+    parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M, 默认单位M)")
     # parse_split.add_argument("--split-filename", help="指定切割文件后缀")
     parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 00 开始)" )
 

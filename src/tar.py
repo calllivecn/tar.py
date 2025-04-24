@@ -19,6 +19,10 @@ from libargparse import (
 )
 
 
+NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
+TARFILE = (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tbz", ".tar.xz", ".txz")
+
+
 def getlogger(level=logging.INFO):
     fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
     # stream = logging.StreamHandler(sys.stdout)
@@ -81,6 +85,8 @@ def extract(args):
     2. gz, z2, xz 文件和新的zst|zst+aes。
     """
 
+    manager = util.ThreadManager()
+
     if args.f:
         f = open(args.f.resolve(), "rb")
     else:
@@ -95,7 +101,6 @@ def extract(args):
             sys.exit(0)
 
     # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
-    NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
     # 需要查看 str.endswith()
     if not args.e:
         if args.f:
@@ -109,39 +114,16 @@ def extract(args):
             if not suffix_flag:
                 raise tarfile.ReadError(f"未知格式文件...目前支持的文件后缀{NEWTARS}")
 
-    pipes = []
-    fork_threads = []
-    p = util.Pipe()
-    th1 = Thread(target=util.to_pipe, args=(f, p))
-    th1.daemon = True
-    th1.start()
-    pipes.append(p)
-    fork_threads.append(th1)
+    p = manager.add_task(util.to_pipe, f, None, name="to pipe")
 
     if args.e:
-        p2 = util.Pipe()
-        th2 = Thread(target=util.decrypt, args=(p, p2, args.k))
-        th2.daemon = True
-        th2.start()
-
-        p = p2
-
-        pipes.append(p)
-        fork_threads.append(th2)
+        p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
     
     if args.z:
         if not util.IMPORT_ZSTD:
             raise ModuleNotFoundError("pip install pyzstd.")
 
-        p3 = util.Pipe()
-        th3 = Thread(target=util.decompress, args=(p, p3))
-        th3.daemon = True
-        th3.start()
-
-        p = p3
-
-        pipes.append(p)
-        fork_threads.append(th3)
+        p = manager.add_task(util.decompress, p, None, name="decompress")
     
     # extract pipe 2 tar
     try:
@@ -150,89 +132,106 @@ def extract(args):
         print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
         sys.exit(1)
 
-    [th.join() for th in fork_threads]
-    [p.close2() for p in pipes]
+    manager.join_threads()
+    manager.close_pipes()
+    # 关闭管道
 
     if f is not sys.stdin.buffer:
         f.close()
 
 
-def tarlist(args):
-
-    if args.f:
-        f = open(args.f.resolve(), "rb")
-    else:
-        f = sys.stdin.buffer
-
+def __tarlist(f, args):
     pytar = True
     # 从文件提取
     try:
-        util.tarlist(f, args.C, args.verbose)
+        util.tarlist(f, args.verbose)
     except tarfile.ReadError:
+        logger.warning(f"当前标准输入, 不是一个tar文件")
         pytar = False
-    
     
     if pytar:
         sys.exit(0)
 
-    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
-    suffixs = args.f.suffixes
-    suffix = "".join(suffixs)
-    NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
-    if suffix not in NEWTARS:
-        raise tarfile.ReadError(f"未知格式文件")
 
-    pipes = []
-    fork_threads = []
-    p = util.Pipe()
-    if args.f:
-        f = open(args.f.resolve(), "rb")
-        th1 = Thread(target=util.to_pipe, args=(f, p))
-    else:
-        th1 = Thread(target=util.to_pipe, args=(sys.stdin.buffer, p))
-    
-    th1.daemon = True
-    th1.start()
-    pipes.append(p)
-    fork_threads.append(th1)
+def tarlist4stdin(args):
+    f = sys.stdin.buffer
+
+    __tarlist(f, args)
+
+    manager = util.ThreadManager()
+
+    p = manager.add_task(util.to_pipe, f, None, name="stdin to pipe")
 
     if args.e:
-        p2 = util.Pipe()
-        th2 = Thread(target=util.decrypt, args=(p, p2, args.k))
-        th2.daemon = True
-        th2.start()
-
-        p = p2
-
-        pipes.append(p)
-        fork_threads.append(th2)
+        p = manager.add_task(util.decrypt, f, None, args.k)
     
     if args.z:
-        p3 = util.Pipe()
-        th3 = Thread(target=util.decompress, args=(p, p3))
-        th3.daemon = True
-        th3.start()
-
-        p = p3
-
-        pipes.append(p)
-        fork_threads.append(th3)
+        p = manager.add_task(util.decompress, p, None, name="decompress")
     
-    # extract pipe 2 tar
     try:
-        util.pipe2tarlist(p, args.C, args.verbose)
+        util.pipe2tarlist(p, args.verbose)
     except tarfile.ReadError:
-        print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+        print(f"从标准输入解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
         sys.exit(1)
 
-    [th.join() for th in fork_threads]
-    [p.close2() for p in pipes]
-
-    if f is not sys.stdin.buffer:
-        f.close()
-
+    manager.join_threads()
+    manager.close_pipes()
+    # 关闭管道
+    f.close()
 
 
+def tarlist4file(args, suffix: str):
+    """
+    处理tar文件
+    tar.zst, tar.zst.aes, tar.tz, tar.tza
+    """
+
+    __tarlist(args.f, args)
+
+    manager = util.ThreadManager()
+
+    with open(args.f.resolve(), "rb") as f:
+
+        p = manager.add_task(util.to_pipe, f, None, name="tarlist4file")
+
+        # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
+        if suffix in (".tar.zst.aes", ".tza", ".ta"):
+            # 需要解密
+            p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
+
+        elif suffix in (".tar.zst", ".tz"):
+            p = manager.add_task(util.decompress, p, None, name="decompress")
+
+        else:
+            raise tarfile.ReadError(f"未知格式文件")
+    
+        # 处理管道
+        try:
+            util.pipe2tarlist(p, args.verbose)
+        except tarfile.ReadError:
+            logger.warning(f"{args.f}: 不是一个tar文件")
+            sys.exit(1)
+
+
+def tarlist(args):
+
+    # 如果args.f是None，需要从标准输入读取
+    if args.f is None or args.O:
+        tarlist4stdin(args)
+    else:
+        # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
+        suffixs = args.f.suffixes
+        suffix = "".join(suffixs)
+        if suffix in NEWTARS:
+            tarlist4file(args, suffix)
+
+        elif suffix in TARFILE:
+            util.tarlist(args.f, args.verbose)
+
+        else:
+            raise tarfile.ReadError(f"未知格式文件")
+
+    
 def main():
     parse, args = parse_args()
 
