@@ -104,8 +104,6 @@ class Pipe:
     
     def close(self):
         os.close(self.w)
-    
-    def close2(self):
         os.close(self.r)
 
 
@@ -136,13 +134,9 @@ class Pipefork:
         return n
 
     def close(self):
-        for pipe in self.pipes:
-            pipe.close()
-
-    def close2(self):
         pipe: Pipe
         for pipe in self.pipes:
-            pipe.close2()
+            pipe.close()
 
 
 ##################
@@ -161,7 +155,7 @@ def compress(rpipe: Pipe, wpipe: Pipe, level: int, threads: int):
         wpipe.write(Zst.compress(tar_data))
     wpipe.write(Zst.flush())
 
-    wpipe.close()
+    logger.debug("压缩完成")
 
 
 def decompress(rpipe: Pipe, wpipe: Pipe):
@@ -171,20 +165,17 @@ def decompress(rpipe: Pipe, wpipe: Pipe):
         tar_data = zst.decompress(zst_data)
         wpipe.write(tar_data)
 
-    wpipe.close()
-
-
 ##################
 # crypto 相关处理函数
 ##################
 
 def encrypt(rpipe: Pipe, wpipe:Pipe, password, prompt):
-    libcrypto.encrypt(rpipe, wpipe, password, prompt)
-    wpipe.close()
+    aes = libcrypto.AESCrypto(password)
+    aes.encrypt(rpipe, wpipe, prompt)
 
 def decrypt(rpipe: Pipe, wpipe:Pipe, password):
-    libcrypto.decrypt(rpipe, wpipe, password)
-    wpipe.close()
+    aes = libcrypto.AESCrypto(password)
+    aes.decrypt(rpipe, wpipe)
 
 # 查看加密提示信息
 def prompt(path: Path):
@@ -301,8 +292,8 @@ def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
 
             # tar.add(path, arcname)
             tar.add(path, arcname, filter=lambda x: filter(x, verbose, excludes))
-
-    pipe.close()
+    
+    logger.debug(f"打包完成: {paths}")
 
 
 # 提取 zst
@@ -336,13 +327,13 @@ def pipe2tarlist(pipe: Pipe, path: Path, verbose=False):
 def to_file(rpipe: Pipe, fileobj: IO):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
-    # fileobj.close()
+    
+    logger.debug("to_file() 写入完成")
 
 # fork 节点执行完后，需要关闭向后的管道
 def to_pipe(rpipe: Pipe, wpipe: Pipe):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(data)
-    wpipe.close()
 
 
 #################
@@ -350,7 +341,6 @@ def to_pipe(rpipe: Pipe, wpipe: Pipe):
 #################
 
 def split(rpipe: Pipe, splitsize: int, filename: Path):
-
     split_ptr = 0
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         split_ptr += len(data)
@@ -386,20 +376,62 @@ def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
 
 
 # 怎么把每个处理器连接起来工作呢？
-
-class executer:
-
+class ThreadManager:
     def __init__(self):
-        
-        self.end = False
+        self.threads = []
+        self.pipes = []
 
-        self.works = []
+    def add_pipe(self, pipe=None):
+        """
+        添加一个管道。如果未提供管道，则创建一个新的管道。
+        """
+        if pipe is None:
+            pipe = Pipe()
+        self.pipes.append(pipe)
+        return pipe
 
-    def add_handle_pipe(self, funcs: Callable, *args, **kwargs):
-        pipe = Pipe()
-        th = threading.Thread(target=funcs, args=args, kwargs=kwargs, daemon=True)
-        self.works.append(th)
-    
+    def add_task(self, func, input_pipe=None, output_pipe=None, *arguments, name=None, daemon=True):
+        """
+        添加一个任务，自动管理线程和管道。
+        - func: 任务函数
+        - input_pipe: 输入管道
+        - output_pipe: 输出管道
+        - args: 额外的参数
+        """
+        if output_pipe is None:
+            output_pipe = self.add_pipe()
 
-    def start(self):
-        pass
+        thread = threading.Thread(target=func, args=(input_pipe, output_pipe, *arguments), name=name)
+        thread.daemon = daemon
+        thread.start()
+        self.threads.append(thread)
+
+        return output_pipe
+
+    def join_threads(self):
+        """
+        等待所有线程完成。
+        """
+        thread: threading.Thread
+        for thread in self.threads:
+            thread.join()
+
+    def close_pipes(self):
+        """
+        关闭所有管道。
+        """
+        pipe: Pipe
+        for pipe in self.pipes:
+            pipe.close()
+
+    def run_pipeline(self, tasks):
+        """
+        运行一组任务，自动连接管道。
+        - tasks: [(func, args), ...]
+        """
+        input_pipe = None
+        for func, args in tasks:
+            output_pipe = self.add_pipe()
+            self.add_task(func, input_pipe, output_pipe, *args)
+            input_pipe = output_pipe
+        return input_pipe

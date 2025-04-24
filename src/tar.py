@@ -34,34 +34,15 @@ logger = getlogger()
 
 
 def create(args, shafuncs):
-    # 收集关闭read的close2()。
-    pipes = []
+    manager = util.ThreadManager()
 
-    # 在主线程执行完的时候，分支线程可能 没执行完。需要收集分支线程，在 close2() 之前 join()
-    fork_threads = []
-
-    p = util.Pipe()
-    th1 = Thread(target=util.tar2pipe, args=(args.target, p, args.verbose, args.excludes), name="tar 2 pipe")
-    th1.daemon = True
-    th1.start()
-    pipes.append(p)
+    p = manager.add_task(util.tar2pipe, args.target, None, args.verbose, args.excludes, name="tar --> pipe")
 
     if args.z:
-        p2 = util.Pipe()
-        th2 = Thread(target=util.compress, args=(p, p2, args.level, args.threads), name="zstd")
-        th2.daemon = True
-        th2.start()
-        p = p2
-        pipes.append(p)
+        p = manager.add_task(util.compress, p, None, args.level, args.threads, name="zstd")
 
     if args.e:
-        p3 = util.Pipe()
-
-        th3 = Thread(target=util.encrypt, args=(p, p3, args.k, args.prompt), name="encrypt")
-        th3.daemon = True
-        th3.start()
-        p = p3
-        pipes.append(p)
+        p = manager.add_task(util.encrypt, p, None, args.k, args.prompt, name="encrypt")
 
     if len(shafuncs) > 0:
         fork = util.Pipefork()
@@ -69,35 +50,25 @@ def create(args, shafuncs):
         sha = fork.fork()
 
         # 从里把管道流分成两条
-        th_fork = Thread(target=util.to_pipe, args=(p, fork), name="to pipe")
-        th_fork.start()
+        manager.add_task(util.to_pipe, p, fork, name="to pipe")
         p = p4
-
-        th4 = Thread(target=util.shasum, args=(shafuncs, sha, args.sha_file), name="shasum")
-        th4.daemon = True
-        th4.start()
-        fork_threads.append(th4)
-        pipes.append(fork)
+        manager.add_pipe(fork)
+        manager.add_task(util.shasum, shafuncs, sha, args.sha_file, name="shasum")
 
 
     if args.split:
-        p5 = util.Pipe()
-        th5 = Thread(target=util.split, args=(p, args.split, args.f), name="split")
-        th5.daemon = True
-        th5.start()
-        p5.close()
+        p = manager.add_task(util.split, p, None, args.split, args.f, name="split size")
 
-    
     # 最后写入到文件, 还需要处理到标准输出
     if args.f:
         f = open(args.f, "wb")
     else:
         f = sys.stdout.buffer
     
-    util.to_file(p, f)
+    manager.add_task(util.to_file, p, f, name="to file")
 
-    [ th.join() for th in fork_threads]
-    [ p.close2() for p in pipes]
+    manager.join_threads()
+    manager.close_pipes()
 
     if f is not sys.stdout.buffer:
         f.close()

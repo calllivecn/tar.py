@@ -162,27 +162,27 @@ def isstring(key):
         raise argparse.ArgumentTypeError("password require is string")
 
 
-# v1.0 (version code: 0x01) 的做法，密钥没有派生。
-def salt_key(password, salt):
-    key = sha256(salt + password.encode("utf-8")).digest()
-    return key
-
-# 现在 v1.2 (version code: 0x02)使用密钥派生。date: 2021-11-07
-def key_deriverd(password, salt):
-    return pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 200000)
-
 def fileinfo(filename):
-    header = FileFormat()
-    with open(filename, "rb") as fp:
-        file_version, prompt_len, iv, salt, prompt = header.getHeader(fp)
+    """
+    读取并打印文件的头部信息。
+    """
+    try:
+        with open(filename, "rb") as fp:
+            # 使用 FileFormat 类解析文件头
+            header = FileFormat.read_from_stream(fp)
 
-    print("File Version: {}(1byte)".format(hex(file_version)))
+        # 打印文件头信息
+        print(f"File Version: {hex(header.version)}")
+        print(f"IV: {b2a_hex(header.iv).decode()}")
+        print(f"Salt: {b2a_hex(header.salt).decode()}")
+        print(f"Password Prompt: {header.prompt.decode('utf-8')}")
 
-    print("IV: {}".format(b2a_hex(iv).decode()))
-
-    print("Salt: {}".format(b2a_hex(salt).decode()))
-
-    print("Password Prompt: {}".format(prompt))
+    except ValueError as e:
+        logger.error(f"无法解析文件头：{e}")
+    except FileNotFoundError:
+        logger.error(f"文件未找到：{filename}")
+    except Exception as e:
+        logger.error(f"读取文件信息时发生错误：{e}")
 
 
 class AESCrypto:
@@ -195,7 +195,8 @@ class AESCrypto:
 
     def _derive_key(self, salt):
         """
-        使用 PBKDF2 派生密钥。
+        现在 v1.2 (version code: 0x02)使用密钥派生。date: 2021-11-07
+        使用 PBKDF2 派生密钥。修改时间：2025-04-24
         """
         return pbkdf2_hmac("sha256", self.password.encode("utf-8"), salt, 200000)
 
