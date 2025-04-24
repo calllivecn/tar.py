@@ -4,6 +4,7 @@
 # author calllivecn <calllivecn@outlook.com>
 
 import os
+import io
 import sys
 import getpass
 import logging
@@ -39,53 +40,105 @@ class PromptTooLong(Exception):
 
 class FileFormat:
     """
-    写入到文件的文件格式
+    文件格式类，支持流式数据的编码和解码。
     """
 
+    HEADER_STRUCT = Struct("!HH16s32s")  # version, prompt_len, iv, salt
+
     def __init__(self, file_version=0x0002):
+        self.version = file_version
+        self.prompt_len = 0
+        self.iv = os.urandom(16)
+        self.salt = os.urandom(32)
+        self.prompt = b""
+
+    def set_prompt(self, prompt=""):
         """
-        prompt: `str': 密码提示信息
-        out_fp: `fp': 类文件对象
+        设置密码提示信息。
         """
-
-        logger.debug("file header format build")
-        self.version = file_version  # 2byte
-        self.prompt_len = bytes(2)  # 2bytes 提示信息字节长度
-        self.iv = os.urandom(16)     # 16byte
-        self.salt = os.urandom(32)   # 32byte
-        # self.long = bytes(8)        # 8byte 加密后数据部分长度
-        # self.sha256 = bytes(32)     # 32byte 加密后数据部分校验和
-        self.prompt = bytes()        # 定长，utf-8编码串, 之后填写，可为空
-        # 以上就格式顺序
-
-        self.file_fmt = Struct("!HH")
-
-    def setPrompt(self, prompt=""):
-        logger.debug("set prompt info")
         prompt = prompt.encode("utf-8")
+        if len(prompt) > 65535:
+            raise ValueError("密码提示信息太长，必须小于 65535 字节。")
+        self.prompt = prompt
         self.prompt_len = len(prompt)
 
-        if self.prompt_len > 65536:
-            raise PromptTooLong("你给的密码提示信息太长。(需要 <=65536字节 或 <=21845中文字符)")
-        else:
-            self.prompt = prompt
+    def encode(self):
+        """
+        将文件头编码为二进制数据。
+        """
+        header = self.HEADER_STRUCT.pack(
+            self.version,
+            self.prompt_len,
+            self.iv,
+            self.salt
+        )
+        return header + self.prompt
 
-    def setHeader(self, fp):
-        # logger.debug(f"set file header {fp.name}")
-        logger.debug(f"set file header")
-        logger.debug(f"\nversion: {self.version}\n prompt_len: {self.prompt_len}\n vi: {self.iv}\n salt: {self.salt}\n prompt: {self.prompt}")
-        headers = self.file_fmt.pack(self.version, self.prompt_len)
-        self.HEAD = headers + self.iv + self.salt + self.prompt
-        return fp.write(self.HEAD)
+    @classmethod
+    def decode(cls, data):
+        """
+        从二进制数据解码为 FileFormat 实例。
+        """
+        header_size = cls.HEADER_STRUCT.size
+        header_data = data[:header_size]
+        prompt_data = data[header_size:]
 
-    def getHeader(self, fp):
-        logger.debug("get file header")
-        file_version, prompt_len = self.file_fmt.unpack(fp.read(4))
-        iv = fp.read(16)
-        salt = fp.read(32)
-        prompt = fp.read(prompt_len)
-        logger.debug(f"\nversion: {file_version}\n prompt_len: {prompt_len}\n vi: {iv}\n salt: {salt}\n prompt: {self.prompt}")
-        return file_version, prompt_len, iv, salt, prompt.decode("utf-8")
+        version, prompt_len, iv, salt = cls.HEADER_STRUCT.unpack(header_data)
+        prompt = prompt_data[:prompt_len].decode("utf-8")
+
+        instance = cls(file_version=version)
+        instance.iv = iv
+        instance.salt = salt
+        instance.prompt = prompt.encode("utf-8")
+        instance.prompt_len = prompt_len
+
+        return instance
+
+    def write_to_stream(self, stream: io.BufferedWriter):
+        """
+        将文件头写入流中。
+        """
+        header = self.HEADER_STRUCT.pack(
+            self.version,
+            self.prompt_len,
+            self.iv,
+            self.salt
+        )
+        stream.write(header)
+        stream.write(self.prompt)
+
+    @classmethod
+    def read_from_stream(cls, stream: io.BufferedReader):
+        """
+        从流中读取文件头并返回 FileFormat 实例。
+        """
+        header_size = cls.HEADER_STRUCT.size
+        header_data = stream.read(header_size)
+        if len(header_data) < header_size:
+            raise ValueError("文件头数据不足，无法解析。")
+
+        version, prompt_len, iv, salt = cls.HEADER_STRUCT.unpack(header_data)
+        prompt = stream.read(prompt_len)
+        if len(prompt) < prompt_len:
+            raise ValueError("密码提示信息数据不足，无法解析。")
+
+        instance = cls(file_version=version)
+        instance.iv = iv
+        instance.salt = salt
+        instance.prompt = prompt
+        instance.prompt_len = prompt_len
+
+        return instance
+
+    def __repr__(self):
+        return (
+            f"FileFormat(version={self.version}, prompt_len={self.prompt_len}, "
+            f"iv={self.iv.hex()}, salt={self.salt.hex()}, prompt={self.prompt.decode('utf-8')})"
+        )
+    
+    def __str__(self):
+        return self.__repr__()
+
 
 
 def isregulerfile(filename):
@@ -132,80 +185,92 @@ def fileinfo(filename):
     print("Password Prompt: {}".format(prompt))
 
 
-def encrypt(in_stream, out_stream, password, prompt=None):
-    header = FileFormat()
+class AESCrypto:
+    """
+    AES 加密/解密类，支持流式数据处理。
+    """
 
-    if prompt is None:
-        header.setPrompt()
-    else:
-        header.setPrompt(prompt)
+    def __init__(self, password: str):
+        self.password = password
 
-    header.setHeader(out_stream)
+    def _derive_key(self, salt):
+        """
+        使用 PBKDF2 派生密钥。
+        """
+        return pbkdf2_hmac("sha256", self.password.encode("utf-8"), salt, 200000)
 
-    key = key_deriverd(password, header.salt)
+    def _legacy_key(self, salt):
+        """
+        旧版本的密钥派生方式。
+        """
+        return sha256(salt + self.password.encode("utf-8")).digest()
 
-    algorithm = algorithms.AES(key)
-    cipher = Cipher(algorithm, mode=modes.CFB(header.iv))
-    aes = cipher.encryptor()
+    def encrypt(self, in_stream: io.BufferedReader, out_stream: io.BufferedWriter, prompt=None):
+        """
+        加密数据流。
+        """
+        # 创建文件头
+        header = FileFormat()
+        header.set_prompt(prompt or "")
+        header.write_to_stream(out_stream)
 
-    while (data := in_stream.read(BLOCK)) != b"":
-        en_data = aes.update(data)
-        out_stream.write(en_data)
+        # 派生密钥
+        key = self._derive_key(header.salt)
 
-    out_stream.write(aes.finalize())
+        # 初始化 AES 加密器
+        cipher = Cipher(algorithms.AES(key), modes.CFB(header.iv))
+        aes = cipher.encryptor()
 
+        # 加密数据块
+        while (data := in_stream.read(BLOCK)) != b"":
+            out_stream.write(aes.update(data))
+        out_stream.write(aes.finalize())
 
-def decrypt(in_stream, out_stream, password):
-    header = FileFormat()
+    def decrypt(self, in_stream: io.BufferedReader, out_stream: io.BufferedWriter):
+        """
+        解密数据流。
+        """
+        # 读取文件头
+        header = FileFormat.read_from_stream(in_stream)
 
-    file_version, prompt_len, iv, salt, prompt = header.getHeader(
-        in_stream)
+        # 根据文件版本派生密钥
+        if header.version == 0x02:
+            key = self._derive_key(header.salt)
+        elif header.version == 0x01:
+            key = self._legacy_key(header.salt)
+        else:
+            logger.error(f"不支持的文件版本：{header.version}")
+            sys.exit(2)
 
-    if file_version == 0x02:
-        key = key_deriverd(password, salt)
-    elif file_version == 0x01:
-        key = salt_key(password, salt)
-    else:
-        logger.error(f"不支持的文件版本。")
-        sys.exit(2)
+        # 初始化 AES 解密器
+        cipher = Cipher(algorithms.AES(key), modes.CFB(header.iv))
+        aes = cipher.decryptor()
 
-    algorithm = algorithms.AES(key)
-    cipher = Cipher(algorithm, mode=modes.CFB(iv))
-    aes = cipher.decryptor()
-
-    while (data := in_stream.read(BLOCK)) != b"":
-        de_data = aes.update(data)
-        out_stream.write(de_data)
-    
-    out_stream.write(aes.finalize())
-
+        # 解密数据块
+        while (data := in_stream.read(BLOCK)) != b"":
+            out_stream.write(aes.update(data))
+        out_stream.write(aes.finalize())
 
 
 def main():
-    parse = argparse.ArgumentParser(usage="Usage: %(prog)s [-d ] [-p prompt] [-I filename] [-k password] [-v] [-i in_filename|-] [-o out_filename|-]",
-                                    description="AES 加密",
-                                    epilog="""%(prog)s {}
-                                    https://github.com/calllivecn/mytools""".format(version)
-                                    )
+    parse = argparse.ArgumentParser(
+        usage="Usage: %(prog)s [-d ] [-p prompt] [-I filename] [-k password] [-v] [-i in_filename|-] [-o out_filename|-]",
+        description="AES 加密",
+        epilog=f"%(prog)s {version}\nhttps://github.com/calllivecn/mytools"
+    )
 
     groups = parse.add_mutually_exclusive_group()
-    groups.add_argument("-d", action="store_false",
-                        help="decrypto (default: encrypto)")
+    groups.add_argument("-d", action="store_false", help="decrypto (default: encrypto)")
     groups.add_argument("-p", action="store", help="password prompt")
-    groups.add_argument("-I", action="store",
-                        type=isregulerfile, help="AES crypto file")
+    groups.add_argument("-I", action="store", type=isregulerfile, help="AES crypto file")
 
     parse.add_argument("-k", action="store", type=isstring, help="password")
     parse.add_argument("-v", action="count", help="verbose")
 
-    parse.add_argument("-i", action="store", default="-",
-                       type=isregulerfile, help="in file")
-    parse.add_argument("-o", action="store", default="-",
-                       type=notexists, help="out file")
+    parse.add_argument("-i", action="store", default="-", type=isregulerfile, help="in file")
+    parse.add_argument("-o", action="store", default="-", type=notexists, help="out file")
 
     args = parse.parse_args()
-    # print(args);#sys.exit(0)
-
 
     if args.I:
         fileinfo(args.I)
@@ -227,7 +292,6 @@ def main():
                 sys.exit(2)
         else:
             password = getpass.getpass("Password:")
-
     else:
         password = args.k
 
@@ -240,24 +304,20 @@ def main():
         out_stream = sys.stdout.buffer
     else:
         out_stream = open(args.o, "wb")
-    
+
+    crypto = AESCrypto(password)
+
     # 加密
     if args.d:
-
         logger.debug("开始加密...")
-        encrypt(in_stream, out_stream, password, args.p)
-        in_stream.close()
-        out_stream.close()
-
+        crypto.encrypt(in_stream, out_stream, args.p)
     # 解密
     else:
         logger.debug("开始解密...")
+        crypto.decrypt(in_stream, out_stream)
 
-        decrypt(in_stream, out_stream, password)
-
-        in_stream.close()
-        out_stream.close()
-
+    in_stream.close()
+    out_stream.close()
 
 if __name__ == "__main__":
     main()
