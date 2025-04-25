@@ -81,6 +81,7 @@ POXIS tar 工具
     %(prog)s --info archive.ta               # 查看提示信息,如果有的话。
 
     使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
+    解压 *.tar.gz *.tar.xz *.tar.bz2 时，不要指定 -z 和 -e。
 
 '''
 

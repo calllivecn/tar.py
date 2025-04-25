@@ -199,7 +199,7 @@ def prompt(path: Path):
 ##################
 
 
-def extract(readable: Path | BinaryIO, path: Path, verbose=False, safe_extract=False):
+def extract(readable: Path | BinaryIO | io.BufferedReader, path: Path, verbose=False, safe_extract=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
     """
@@ -219,7 +219,7 @@ def extract(readable: Path | BinaryIO, path: Path, verbose=False, safe_extract=F
                 # 安全的直接提取
                 tar.extract(tarinfo, path)
 
-    elif isinstance(readable, BinaryIO):
+    elif isinstance(readable, BinaryIO) or isinstance(readable, io.BufferedReader):
         # 从标准输入提取
         with tarfile.open(mode="r|*", fileobj=readable) as tar:
             while (tarinfo := tar.next()) is not None:

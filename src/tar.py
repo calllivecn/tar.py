@@ -10,8 +10,6 @@ import sys
 import logging
 import getpass
 import tarfile
-from threading import Thread
-
 
 import util
 from libargparse import (
@@ -55,8 +53,8 @@ def create(args, shafuncs):
 
         # 从里把管道流分成两条
         manager.add_task(util.to_pipe, p, fork, name="to pipe")
-        p = p4
         manager.add_pipe(fork)
+        p = p4
         manager.add_task(util.shasum, shafuncs, sha, args.sha_file, name="shasum")
 
 
@@ -78,43 +76,59 @@ def create(args, shafuncs):
         f.close()
 
 
-def extract(args):
+def extract4file(args):
+    # 解压*.tar.gz *.tar.xz *.tar.bz2
+    if not args.e and not args.z:
+        try:
+            util.extract(args.f, args.C, args.verbose, args.safe_extract)
+        except tarfile.ReadError:
+            logger.warning(f"{args.f}: 不是一个tar文件")
+            sys.exit(0)
+    
+    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza
+    else:
+        with open(args.f.resolve(), "rb") as f:
+
+            manager = util.ThreadManager()
+
+            p = manager.add_task(util.to_pipe, f, None, name="to pipe")
+
+            if args.e:
+                p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
+    
+            if args.z:
+                if not util.IMPORT_ZSTD:
+                    raise ModuleNotFoundError("pip install pyzstd.")
+
+                p = manager.add_task(util.decompress, p, None, name="decompress")
+    
+            try:
+                util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
+            except tarfile.ReadError:
+                print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+                sys.exit(1)
+
+            manager.join_threads()
+            manager.close_pipes()
+            # 关闭管道
+
+
+def extract4stdin(args):
     """
-    解压分：
-    1. 从文件读取和从标准输入读取。
-    2. gz, z2, xz 文件和新的zst|zst+aes。
+    从标准输入解压时，如果是*.tar.zst.aes类型文件，需要指定-z 和 -e。
     """
+    f = sys.stdin.buffer
+
+    # 从标准输入提取
+    try:
+        util.extract(f, args.C, args.verbose, args.safe_extract)
+    except tarfile.ReadError:
+        logger.warning(f"{f}: 不是一个tar文件")
+        sys.exit(0)
 
     manager = util.ThreadManager()
 
-    if args.f:
-        f = open(args.f.resolve(), "rb")
-    else:
-        f = sys.stdin.buffer
-
-    # 从文件提取
-    if not args.e:
-        try:
-            util.extract(f, args.C, args.verbose, args.safe_extract)
-        except tarfile.ReadError:
-            logger.warning(f"{f}: 不是一个tar文件")
-            sys.exit(0)
-
-    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
-    # 需要查看 str.endswith()
-    if not args.e:
-        if args.f:
-            suffix = str(args.f)
-            suffix_flag = False
-            for suffixname in NEWTARS:
-                if suffix.endswith(suffixname):
-                    suffix_flag = True
-                    break
-
-            if not suffix_flag:
-                raise tarfile.ReadError(f"未知格式文件...目前支持的文件后缀{NEWTARS}")
-
-    p = manager.add_task(util.to_pipe, f, None, name="to pipe")
+    p = manager.add_task(util.to_pipe, args.f, None, name="to pipe")
 
     if args.e:
         p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
@@ -125,7 +139,6 @@ def extract(args):
 
         p = manager.add_task(util.decompress, p, None, name="decompress")
     
-    # extract pipe 2 tar
     try:
         util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
     except tarfile.ReadError:
@@ -134,10 +147,20 @@ def extract(args):
 
     manager.join_threads()
     manager.close_pipes()
-    # 关闭管道
 
-    if f is not sys.stdin.buffer:
-        f.close()
+
+def extract(args):
+    """
+    解压：
+    1. 从文件读取和从标准输入读取。
+    2. gz, z2, xz 文件和新的zst|zst+aes。
+    3. 解压时输出只能是路径
+    """
+
+    if args.f is None or args.O:
+        extract4stdin(args)
+    else:
+        extract4file(args)
 
 
 def __tarlist(f, args):
