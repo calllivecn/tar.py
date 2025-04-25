@@ -95,17 +95,15 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         )
     
+    parse.add_argument("-h", "--help", action="store_true", help="输出帮助信息")
+
     # 位置参数
     parse.add_argument('target', nargs='*', type=target_exists, help='文件s | 目录s')
 
-    parse.add_argument("-h", "--help", action="store_true", help="输出帮助信息")
-
     parse.add_argument("-f", type=Path, help="archive 文件, 没有这参数时，默认使用标准输入输出。")
-    parse.add_argument("-C", type=target_exists, default=".", help="更改目录(default: .)")
+    parse.add_argument("-C", type=target_exists, default=".", help="解压输出目录(default: .)")
 
-    # 从标准输入读取
-    # parse.add_argument("--stdin", action="store_true", help="从标准输入读取")
-    # parse.add_argument("--stdout", action="store_true", help="输出到标准输出")
+    # 从标准输入读取 或者输出到标准输出
     parse.add_argument("-O", action="store_true", default=False, help="解压文件至标准输出")
 
     group1 = parse.add_mutually_exclusive_group()
@@ -153,9 +151,9 @@ def parse_args():
     parse_hash.add_argument("--sha-all", action="store_true", help="计算所有哈希值")
 
     parse_split = parse.add_argument_group("切割输出文件")
-    parse_split.add_argument("--split", type=split_size, help="单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M, 默认单位M)")
+    parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
     # parse_split.add_argument("--split-filename", help="指定切割文件后缀")
-    parse_split.add_argument("--suffix", help="指定切割文件后缀(default: 00 开始)" )
+    parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 

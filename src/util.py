@@ -4,7 +4,6 @@
 # author calllivecn <calllivecn@outlook.com>
 
 from typing import (
-    IO,
     Optional,
     BinaryIO,
 )
@@ -280,7 +279,7 @@ def order_bad_path(tarinfo: tarfile.TarInfo):
     tarinfo.name = str(cwd)
 
 
-def filter(tarinfo, verbose=False, fs=[]):
+def filter(tarinfo: tarfile.TarInfo, verbose=False, fs=[]):
     for fm in fs:
         if fnmatchcase(tarinfo.name, fm):
             return None
@@ -297,6 +296,7 @@ def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
     只使用 给出路径最右侧做为要打包的内容
     例："../../dir1/dir2" --> 只会打包 dir2 目录|文件
     """
+    tar: tarfile.TarFile
     with tarfile.open(mode="w|", fileobj=pipe) as tar:
         for path in paths:
             abspath = path.resolve()
@@ -311,7 +311,7 @@ def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
 
 # 提取 zst
 def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
-
+    tar: tarfile.TarFile
     with tarfile.open(mode="r|", fileobj=pipe) as tar:
         while (tarinfo := tar.next()) is not None:
             if ".." in tarinfo.name:
@@ -337,7 +337,7 @@ def pipe2tarlist(pipe: Pipe, verbose=False):
 # pipe 2 file and pipe 2 pipe
 #################
 
-def to_file(rpipe: Pipe, fileobj: IO):
+def to_file(rpipe: Pipe, fileobj: BinaryIO):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
     logger.debug("to_file() 写入完成")
@@ -349,15 +349,6 @@ def to_pipe(rpipe: Pipe, wpipe: Pipe):
     wpipe.close()
     logger.debug("to_pipe() 写入完成")
 
-
-#################
-# split 切割
-#################
-
-def split(rpipe: Pipe, splitsize: int, filename: Path):
-    split_ptr = 0
-    while (data := rpipe.read(BLOCKSIZE)) != b"":
-        split_ptr += len(data)
 
 
 #################
@@ -386,6 +377,16 @@ def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
         with open(outfile, "w") as f:
             for sha in shafuncs:
                 f.write(f"{sha.hexdigest()}\t{sha.name}\n")
+
+
+#################
+# split 切割
+#################
+
+def split(rpipe: Pipe, splitsize: int, filename: Path):
+    split_ptr = 0
+    while (data := rpipe.read(BLOCKSIZE)) != b"":
+        split_ptr += len(data)
 
 
 
