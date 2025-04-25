@@ -5,10 +5,14 @@
 
 
 import argparse
+from argparse import (
+    Namespace,
+)
 from pathlib import Path
 
 import util
 import version
+
 
 class Argument(argparse.ArgumentParser):
 
@@ -30,6 +34,14 @@ def compress_level(level):
         raise argparse.ArgumentTypeError(errmsg)
 
     return l
+
+
+def split_is_dir(path: str):
+    p = Path(path)
+    if not p.is_dir():
+        raise argparse.ArgumentTypeError(f"{p} 不是一个目录")
+    return p
+
 
 def split_size(unit_size):
     unit_chars = ("B", "K", "M", "G", "T", "P")
@@ -69,7 +81,7 @@ def target_exists(filename):
 
 
 Description='''\
-POXIS tar 工具
+POXIS tar 工具 + zstd + sha计算 + split大文件分割
 
 例子:
     %(prog)s -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
@@ -85,7 +97,7 @@ POXIS tar 工具
 
 '''
 
-def parse_args():
+def parse_args() -> tuple[Argument, Namespace]:
 
     parse = Argument(
         usage="%(prog)s [option] [file ... or directory ...]",
@@ -124,7 +136,7 @@ def parse_args():
     # group2.add_argument('-j', '--bzip2', action='store_true', help='filter the archive through bzip2')
     # group2.add_argument('-J', '--xz', dest='xz', action='store_true', help='filter the archive through xz')
 
-    parse_compress = parse.add_argument_group("压缩选项", description="只使用zstd压缩方案, 但可以解压 gz, bz2, xz。")
+    parse_compress = parse.add_argument_group("压缩选项", description="只使用zstd压缩方案, 但可以解压 *.tar.gz, *.tar.bz2, *.tar.xz。")
     parse_compress.add_argument("-z", action="store_true", help="使用zstd压缩(default: level=3)")
     parse_compress.add_argument("-l", dest="level", metavar="level", type=compress_level, default=3, help="指定压缩level: 1 ~ 22")
     parse_compress.add_argument("-T", dest="threads", metavar="threads", type=int, default=util.cpu_physical(), help="默认使用全部CPU物理核心")
@@ -143,16 +155,19 @@ def parse_args():
     parse_hash.add_argument("--md5", action="store_true", help="输出文件同时计算 md5")
     parse_hash.add_argument("--sha1", action="store_true", help="输出文件同时计算 sha1")
     parse_hash.add_argument("--sha224", action="store_true", help="输出文件同时计算 sha224")
-    # parse_hash.add_argument("--sha256", action="store_true", help="输出文件同时计算 default: sha256")
     parse_hash.add_argument("--sha256", action="store_true", default=True, help="输出文件同时计算 default: sha256")
     parse_hash.add_argument("--sha384", action="store_true", help="输出文件同时计算 sha384")
     parse_hash.add_argument("--sha512", action="store_true", help="输出文件同时计算 sha512")
     parse_hash.add_argument("--blake2b", action="store_true", help="输出文件同时计算 blake2b")
     parse_hash.add_argument("--sha-all", action="store_true", help="计算所有哈希值")
 
-    parse_split = parse.add_argument_group("切割输出文件")
+    split_description = """
+    在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
+    """
+    parse_split = parse.add_argument_group("切割输出文件", description=split_description)
+    parse_split.add_argument("--split", type=split_is_dir, help="切割输出文件到指定目录(default: .)")
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
-    # parse_split.add_argument("--split-filename", help="指定切割文件后缀")
+    parse_split.add_argument("--split-prefix", help="指定切割文件的前缀: ")
     parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)

@@ -12,9 +12,7 @@ import getpass
 import tarfile
 
 import util
-from libargparse import (
-    parse_args,
-)
+from libargparse import parse_args
 from logs import logger, logger_print
 
 
@@ -44,6 +42,9 @@ def create(args, shafuncs):
         p = p4
         manager.add_task(util.shasum, shafuncs, sha, args.sha_file, name="shasum")
 
+    if args.split and (args.f or args.O):
+        logger_print.info(f"--split 和 (-f 或者 -O) 不能同时使用.")
+        sys.exit(1)
 
     if args.split:
         p = manager.add_task(util.split, p, None, args.split, args.f, name="split size")
@@ -55,6 +56,7 @@ def create(args, shafuncs):
         f = sys.stdout.buffer
     
     manager.add_task(util.to_file, p, f, name="to file")
+
 
     manager.join_threads()
     manager.close_pipes()

@@ -356,7 +356,7 @@ def to_pipe(rpipe: Pipe, wpipe: Pipe):
 #################
 HASH = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b")
 def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
-    # print("执行了吗？", shafuncnames)
+    logger.debug(f"计算hash: {shafuncnames}")
     shafuncs = []
     for funcname in sorted(shafuncnames):
         if funcname in HASH:
@@ -371,7 +371,7 @@ def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
     
     # print("怎么没输出？")
     for sha in shafuncs:
-        print(f"{sha.hexdigest()} {sha.name}", file=sys.stderr)
+        logger_print.info(f"{sha.hexdigest()} {sha.name}")
 
     if isinstance(outfile, Path):
         with open(outfile, "w") as f:
@@ -383,10 +383,41 @@ def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
 # split 切割
 #################
 
-def split(rpipe: Pipe, splitsize: int, filename: Path):
+def genrate_suffix(prefix, width=2):
+    file_index = 0
+    width_current_max = int("9"*width)
+    while True:
+
+        suffix = str(file_index).zfill(width)
+        files = f"{prefix}{suffix}"
+        yield files
+
+        file_index += 1
+        if file_index > width_current_max:
+            file_index = int("9"*width + "0"*width)
+            # 数位翻倍
+            width = width<<1
+            width_current_max = int("9"*width)
+
+
+def split(rpipe: Pipe, splitsize: int, output_dir: Path, file_prefix: Path, file_suffix: str):
+    gen_filename = genrate_suffix(file_prefix, 4)
+    filename_prefix = next(gen_filename)
     split_ptr = 0
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         split_ptr += len(data)
+        if (splitsize - split_ptr) > BLOCKSIZE:
+            split_ptr = 0
+            # 这里的文件名是个问题
+            filename = output_dir / file_prefix
+            with open(filename,"wb") as f:
+                f.write(data)
+            logger.debug(f"切割文件: {filename}")
+        else:
+            filename = output_dir / file_prefix / f"{file_prefix.name}.{file_suffix}"
+            with open(filename,"ab") as f:
+                f.write(data)
+            logger.debug(f"切割文件: {filename}")
 
 
 
