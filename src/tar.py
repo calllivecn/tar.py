@@ -15,24 +15,11 @@ import util
 from libargparse import (
     parse_args,
 )
+from logs import logger, logger_print
 
 
 NEWTARS = (".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")
 TARFILE = (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tbz", ".tar.xz", ".txz")
-
-
-def getlogger(level=logging.INFO):
-    fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
-    # stream = logging.StreamHandler(sys.stdout)
-    stream = logging.StreamHandler(sys.stderr)
-    stream.setFormatter(fmt)
-    logger = logging.getLogger("AES")
-    logger.setLevel(level)
-    logger.addHandler(stream)
-    return logger
-
-
-logger = getlogger()
 
 
 def create(args, shafuncs):
@@ -102,7 +89,7 @@ def extract4file(args):
             try:
                 util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
             except tarfile.ReadError:
-                print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+                logger_print.info(f"解压: {NEWTARS} 需要指定，-z|-e 参数。")
                 sys.exit(1)
 
             manager.join_threads()
@@ -140,7 +127,7 @@ def extract4stdin(args):
         try:
             util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
         except tarfile.ReadError:
-            print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+            logger_print.info(f"解压: {NEWTARS} 需要指定，-z|-e 参数。")
             sys.exit(1)
 
         manager.join_threads()
@@ -192,7 +179,7 @@ def tarlist4stdin(args):
     try:
         util.pipe2tarlist(p, args.verbose)
     except tarfile.ReadError:
-        print(f"从标准输入解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+        logger_print.info(f"从标准输入解压: {NEWTARS} 需要指定，-z|-e 参数。")
         sys.exit(1)
 
     manager.join_threads()
@@ -261,11 +248,16 @@ def main():
         sys.exit(0)
 
     if args.parse:
-        print(args)
+        logger_print.info(args)
         sys.exit(0)
     
 
-    if args.verbose:
+    if args.verbose == 1:
+        logger_print.setLevel(logging.INFO)
+
+    if args.debug == 1:
+        logger.setLevel(logging.INFO)
+    elif args.debug == 2:
         logger.setLevel(logging.DEBUG)
 
     # hash 算计
@@ -303,7 +295,7 @@ def main():
             if args.c:
                 password2 = getpass.getpass("Password(again):")
                 if password != password2:
-                    print("password mismatches.")
+                    logger_print.info("password mismatches.")
                     sys.exit(2)
         args.k = password
 
@@ -313,7 +305,7 @@ def main():
             os.chdir(args.C)
 
         if len(args.target) == 0:
-            print(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件", file=sys.stderr)
+            logger_print.info(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件", file=sys.stderr)
             sys.exit(1)
 
         create(args, shafuncs)
@@ -328,11 +320,11 @@ def main():
         try:
             util.prompt(args.info)
         except Exception:
-            print(f"不是加密文件或文件损坏")
+            logger_print.info(f"不是加密文件或文件损坏")
             sys.exit(1)
 
     else:
-        print("-c|-x|-t|--info 参数之一是必须的")
+        logger_print.info("-c|-x|-t|--info 参数之一是必须的")
         sys.exit(1)
 
 

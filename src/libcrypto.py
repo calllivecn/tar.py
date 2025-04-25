@@ -32,7 +32,8 @@ version = "v1.2.0"
 
 BLOCK = 1 << 20  # 1M 读取文件块大小
 
-logger = logging.getLogger("AES")
+
+from logs import logger
 
 class PromptTooLong(Exception):
     pass
@@ -172,10 +173,10 @@ def fileinfo(filename):
             header = FileFormat.read_from_stream(fp)
 
         # 打印文件头信息
-        print(f"File Version: {hex(header.version)}")
-        print(f"IV: {b2a_hex(header.iv).decode()}")
-        print(f"Salt: {b2a_hex(header.salt).decode()}")
-        print(f"Password Prompt: {header.prompt.decode('utf-8')}")
+        logger.print(f"File Version: {hex(header.version)}")
+        logger.print(f"IV: {b2a_hex(header.iv).decode()}")
+        logger.print(f"Salt: {b2a_hex(header.salt).decode()}")
+        logger.print(f"Password Prompt: {header.prompt.decode('utf-8')}")
 
     except ValueError as e:
         logger.error(f"无法解析文件头：{e}")
@@ -281,18 +282,18 @@ def main():
         sys.exit(0)
 
     if args.v == 1:
-        logger.setLevel(logging.INFO)
+        logger.setlevel(logging.INFO)
     elif args.v == 2:
-        logger.setLevel(logging.DEBUG)
+        logger.setlevel(logging.DEBUG)
     else:
-        logger.setLevel(logging.INFO)
+        logger.setlevel(logging.INFO)
 
     if args.k is None:
         if args.d:
             password = getpass.getpass("Password:")
             password2 = getpass.getpass("Password(again):")
             if password != password2:
-                logger.info("password mismatches.")
+                logger.print("password mismatches.")
                 sys.exit(2)
         else:
             password = getpass.getpass("Password:")

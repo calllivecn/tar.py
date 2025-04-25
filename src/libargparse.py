@@ -114,8 +114,8 @@ def parse_args():
     group1.add_argument("-t", "--list", action="store_true", help="输出tar文件内容")
 
     parse.add_argument("--safe-extract", dest="safe_extract", action="store_true", help="解压时处理tar里不安全的路径")
-    # parse.add_argument("-v", "--verbose", action="count", help="输出详情")
-    parse.add_argument("-v", "--verbose", action="store_true", help="输出详情")
+    parse.add_argument("-v", "--verbose", action="count", default=0, help="输出详情")
+    parse.add_argument("-d", "--debug", action="count", default=0, help="输出debug详情信息")
 
     parse.add_argument("--excludes", dest="excludes", metavar="PATTERN", nargs="+", default=[], help="排除这类文件,使用Unix shell: PATTERN")
     # parse.add_argument("--excludes-regex", dest="excludes_regex", metavar="PATTERN", nargs="+", type=exclude_regex, help="排除这类文件, 使用正则 PATTERN")

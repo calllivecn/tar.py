@@ -15,7 +15,6 @@ import io
 import sys
 import tarfile
 import hashlib
-import logging
 import threading
 from queue import Queue
 from pathlib import Path
@@ -37,8 +36,8 @@ except ModuleNotFoundError:
 
 import libcrypto
 
-logger = logging.getLogger("AES")
 
+from logs import logger, logger_print
 
 
 # zstd 的标准压缩块大小是256K , 按 pyzstd 文档里写的使用2MB块
@@ -208,13 +207,13 @@ def extract(readable: Path | BinaryIO | io.BufferedReader, path: Path, verbose=F
             while (tarinfo := tar.next()) is not None:
                 if ".." in tarinfo.name:
                     if safe_extract:
-                        print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
+                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                     else:
-                        print("成员路径包含 `..' 提取为:", tarinfo.name, file=sys.stderr)
+                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
                         order_bad_path(Path(tarinfo.name))
 
                 if verbose:
-                    print(tarinfo.name, file=sys.stderr)
+                    logger_print.info(f"{tarinfo.name}")
 
                 # 安全的直接提取
                 tar.extract(tarinfo, path)
@@ -225,13 +224,13 @@ def extract(readable: Path | BinaryIO | io.BufferedReader, path: Path, verbose=F
             while (tarinfo := tar.next()) is not None:
                 if ".." in tarinfo.name:
                     if safe_extract:
-                        print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
+                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                     else:
-                        print("成员路径包含 `..' 提取为:", tarinfo.name, file=sys.stderr)
+                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
                         order_bad_path(Path(tarinfo.name))
 
                 if verbose:
-                    print(tarinfo.name, file=sys.stderr)
+                    logger_print.info(f"{tarinfo.name}")
 
                 # 安全的直接提取
                 tar.extract(tarinfo, path)
@@ -287,7 +286,7 @@ def filter(tarinfo, verbose=False, fs=[]):
             return None
     else:
         if verbose:
-            print(tarinfo.name, file=sys.stderr)
+            logger_print.info(f"{tarinfo.name}")
         return tarinfo
 
 
@@ -317,13 +316,13 @@ def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
         while (tarinfo := tar.next()) is not None:
             if ".." in tarinfo.name:
                 if safe_extract:
-                    print("成员路径包含 `..' 不提取:", tarinfo.name, file=sys.stderr)
+                    logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                 else:
-                    print("成员路径包含 `..' 提取为:", tarinfo.name, file=sys.stderr)
+                    logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
                     order_bad_path(Path(tarinfo.name))
 
             if verbose:
-                print(tarinfo.name, file=sys.stderr)
+                logger_print.info(f"{tarinfo.name}")
 
             # 安全的直接提取
             tar.extract(tarinfo, path)
@@ -342,8 +341,6 @@ def to_file(rpipe: Pipe, fileobj: IO):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
     logger.debug("to_file() 写入完成")
-
-
 
 
 def to_pipe(rpipe: Pipe, wpipe: Pipe):
