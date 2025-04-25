@@ -97,9 +97,6 @@ def extract4file(args):
                 p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
     
             if args.z:
-                if not util.IMPORT_ZSTD:
-                    raise ModuleNotFoundError("pip install pyzstd.")
-
                 p = manager.add_task(util.decompress, p, None, name="decompress")
     
             try:
@@ -119,34 +116,35 @@ def extract4stdin(args):
     """
     f = sys.stdin.buffer
 
-    # 从标准输入提取
-    try:
-        util.extract(f, args.C, args.verbose, args.safe_extract)
-    except tarfile.ReadError:
-        logger.warning(f"{f}: 不是一个tar文件")
-        sys.exit(0)
+    # 解压*.tar.gz *.tar.xz *.tar.bz2
+    if not args.e and not args.z:
+        # 从标准输入提取
+        try:
+            util.extract(f, args.C, args.verbose, args.safe_extract)
+        except tarfile.ReadError:
+            logger.warning(f"{f}: 不是一个tar文件")
+            sys.exit(0)
 
-    manager = util.ThreadManager()
+    else:
 
-    p = manager.add_task(util.to_pipe, args.f, None, name="to pipe")
+        manager = util.ThreadManager()
 
-    if args.e:
-        p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
+        p = manager.add_task(util.to_pipe, f, None, name="to pipe")
+
+        if args.e:
+            p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
     
-    if args.z:
-        if not util.IMPORT_ZSTD:
-            raise ModuleNotFoundError("pip install pyzstd.")
-
-        p = manager.add_task(util.decompress, p, None, name="decompress")
+        if args.z:
+            p = manager.add_task(util.decompress, p, None, name="decompress")
     
-    try:
-        util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
-    except tarfile.ReadError:
-        print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
-        sys.exit(1)
+        try:
+            util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
+        except tarfile.ReadError:
+            print(f"解压: {NEWTARS} 需要指定，-z|-e 参数。", file=sys.stderr)
+            sys.exit(1)
 
-    manager.join_threads()
-    manager.close_pipes()
+        manager.join_threads()
+        manager.close_pipes()
 
 
 def extract(args):
