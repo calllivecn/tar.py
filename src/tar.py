@@ -44,7 +44,7 @@ def create(args, shafuncs):
         if args.split is not None and args.sha_file is None:
             sha_file = args.split / "sha.txt"
         else:
-            sha_file = args.split
+            sha_file = args.sha_file
 
         manager.add_task(util.shasum, shafuncs, sha, sha_file, name="shasum")
 
