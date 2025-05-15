@@ -40,14 +40,20 @@ def create(args, shafuncs):
         manager.add_task(util.to_pipe, p, fork, name="to pipe")
         manager.add_pipe(fork)
         p = p4
-        manager.add_task(util.shasum, shafuncs, sha, args.sha_file, name="shasum")
+
+        if args.sha_file is None:
+            sha_file = args.split / "sha.txt"
+        else:
+            sha_file = args.split
+
+        manager.add_task(util.shasum, shafuncs, sha, sha_file, name="shasum")
 
     if args.split and (args.f or args.O):
         logger_print.info(f"--split 和 (-f 或者 -O) 不能同时使用.")
         sys.exit(1)
 
     if args.split:
-        manager.task(util.split, p, args.split_prefix, args.split_size, args.split, name="split file")
+        manager.task(util.split, p, util.split_prefix(args), args.split_size, args.split, name="split file")
     else:
         # 最后写入到文件, 还需要处理到标准输出
         if args.f:
@@ -140,7 +146,7 @@ def extract4split(args):
     manager = util.ThreadManager()
     splitter = util.FileSplitterMerger()
     p = manager.add_pipe()
-    manager.task(splitter.merge, args.split_prefix, args.split, p, name="merge to pipe")
+    manager.task(splitter.merge, util.split_prefix(args), args.split, p, name="merge to pipe")
 
     if args.e:
         p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
@@ -248,7 +254,8 @@ def tarlist4split(args):
     manager = util.ThreadManager()
     splitter = util.FileSplitterMerger()
     p = manager.add_pipe()
-    manager.task(splitter.merge, args.split_prefix, args.split, p, name="merge file to pipe")
+
+    manager.task(splitter.merge, util.split_prefix(args), args.split, p, name="merge file to pipe")
 
     if args.e:
         p = manager.add_task(util.decrypt, p, None, args.k)

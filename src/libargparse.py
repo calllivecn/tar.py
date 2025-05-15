@@ -38,8 +38,13 @@ def compress_level(level):
 
 def split_is_dir(path: str):
     p = Path(path)
-    if not p.is_dir():
-        raise argparse.ArgumentTypeError(f"{p} 不是一个目录")
+
+    if p.exists():
+        if not p.is_dir():
+            raise argparse.ArgumentTypeError(f"{p} 不是一个目录")
+    else:
+        p.mkdir()
+
     return p
 
 
@@ -163,6 +168,7 @@ def parse_args() -> tuple[Argument, Namespace]:
     split_description = """
     在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
     会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.tza
+    当没有指定--sha-file时，会输出到--split 目录下名为: sha.txt
     """
     parse_split = parse.add_argument_group("切割输出文件", description=split_description)
     parse_split.add_argument("--split", type=split_is_dir, help="切割时的输出目录 或者是 合并时的输入目录 (default: .)")

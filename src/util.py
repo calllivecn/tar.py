@@ -467,6 +467,17 @@ class FileSplitterMerger:
             index += 1
 
 
+def split_prefix(args):
+    split_prefix = args.split_prefix
+
+    if args.z:
+        split_prefix = "data.tz"
+    if args.e:
+        split_prefix = "data.tza"
+
+    return split_prefix
+
+
 # def split(rpipe: Pipe, splitsize: int,  input: Path, output_dir: Path, filename_prefix: str):
 def split(rpipe: Pipe, filename_prefix: str, splitsize: int, output_dir: Path):
     splitter = FileSplitterMerger()
