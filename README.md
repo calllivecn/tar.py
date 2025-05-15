@@ -3,18 +3,10 @@
 ## 一般用法
 
 ```shell
-tar.pyz -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
-tar.pyz -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
-tar.pyz -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
-tar.pyz -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
-```
 
-## 详细用法
-
-```shell
 usage: tar.py [option] [file ... or directory ...]
 
-POXIS tar 工具
+POXIS tar 工具 + zstd + sha计算 + split大文件分割
 
 例子:
     tar.py -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
@@ -25,24 +17,28 @@ POXIS tar 工具
     tar.py -ezcf archive.tar.zst           # 打包 archive.tar.zst 后同时加密。
     tar.py --info archive.ta               # 查看提示信息,如果有的话。
 
+    使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
+    解压 *.tar.gz *.tar.xz *.tar.bz2 时，不要指定 -z 和 -e。
+
 位置参数:
   target                文件s | 目录s
 
 通用选项:
   -h, --help            输出帮助信息
   -f F                  archive 文件, 没有这参数时，默认使用标准输入输出。
-  -C C                  更改目录(default: .)
+  -C C                  解压输出目录(default: .)
   -O                    解压文件至标准输出
   -c                    创建tar文件
   -x                    解压tar文件
   -t, --list            输出tar文件内容
   --safe-extract        解压时处理tar里不安全的路径
   -v, --verbose         输出详情
+  -d, --debug           输出debug详情信息
   --excludes PATTERN [PATTERN ...]
                         排除这类文件,使用Unix shell: PATTERN
 
 压缩选项:
-  只使用zstd压缩方案, 但可以解压 gz, bz2, xz。
+  只使用zstd压缩方案, 但可以解压 *.tar.gz, *.tar.bz2, *.tar.xz。
 
   -z                    使用zstd压缩(default: level=3)
   -l level              指定压缩level: 1 ~ 22
@@ -54,7 +50,7 @@ POXIS tar 工具
   -e                    加密
   -k PASSWORK           指定密码 (default：启动后交互式输入)
   --prompt PROMPT       密码提示信息
-  --info INFO           查看提示信息
+  --info INFO           查看加密提示信息
 
 计算输出文件的sha值:
   --sha-file FILENAME   哈希值输出到文件(default: stderr)
@@ -65,11 +61,22 @@ POXIS tar 工具
   --sha384              输出文件同时计算 sha384
   --sha512              输出文件同时计算 sha512
   --blake2b             输出文件同时计算 blake2b
-  --sha-all             计算所有哈希值
+  --sha-all             计算以上所有哈希值
 
 切割输出文件:
-  --split SPLIT         单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M; default: 1G)
-  --suffix SUFFIX       指定切割文件后缀(default: 00 开始)
+  
+      在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
+      会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.tza
+      当没有指定--sha-file时，会输出到--split 目录下名为: sha.txt
+      
 
-Author: calllivecn <calllivecn@outlook.com>, Version: 0.9.8 Repositories: https://github.com/calllivecn/tar.py
+  --split SPLIT         切割时的输出目录 或者是 合并时的输入目录 (default: .)
+  --split-size SPLIT_SIZE
+                        单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)
+  --split-prefix SPLIT_PREFIX
+                        指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz,
+                        *.tza
+  --split-sha           计算切割文件的sha值。(default: sha256)
+
+Author: calllivecn <calllivecn@outlook.com>, Version: 0.9.9 Repositories: https://github.com/calllivecn/tar.py
 ```

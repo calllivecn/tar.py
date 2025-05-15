@@ -41,7 +41,7 @@ def create(args, shafuncs):
         manager.add_pipe(fork)
         p = p4
 
-        if args.sha_file is None:
+        if args.split is not None and args.sha_file is None:
             sha_file = args.split / "sha.txt"
         else:
             sha_file = args.split
@@ -52,18 +52,22 @@ def create(args, shafuncs):
         logger_print.info(f"--split 和 (-f 或者 -O) 不能同时使用.")
         sys.exit(1)
 
+    f = sys.stdout.buffer
+    
     if args.split:
         manager.task(util.split, p, util.split_prefix(args), args.split_size, args.split, name="split file")
     else:
         # 最后写入到文件, 还需要处理到标准输出
         if args.f:
-            with open(args.f, "wb") as f:
-                manager.add_task(util.to_file, p, f, name="to file")
-        else:
-            manager.add_task(util.to_file, p, sys.stdout.buffer, name="to file")
+            f = open(args.f, "wb")
+
+        manager.add_task(util.to_file, p, f, name="to file")
     
     manager.join_threads()
     manager.close_pipes()
+
+    if f is not sys.stdout.buffer:
+        f.close()
 
 
 def extract4file(args):
