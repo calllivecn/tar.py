@@ -40,32 +40,32 @@ clear_dir_out(){
 }
 
 
-test_tar=$(mktemp -u -p "$dir_test" --suffix .tar)
-echo "创建: $test_tar"
-$CMD -vcf "$test_tar" "$dir_in" && echo "测试创建*.tar 成功"
-$CMD -vxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar 成功"
-clear_files
+tarpy(){
+	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar)
+	echo "创建: $test_tar"
+	$CMD -vcf "$test_tar" "$dir_in" && echo "测试创建*.tar 成功"
+	$CMD -vxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar 成功"
+	clear_files
+	
+	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst)
+	echo "创建: $test_tar"
+	$CMD -zvcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst 成功"
+	$CMD -zvxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst 成功"
+	clear_files
+	
+	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst.aes)
+	echo "创建: $test_tar"
+	$CMD -k "123456" -ezvcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst.aes 成功"
+	$CMD -k "123456" -ezvxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst.aes 成功"
+	clear_files
 
-test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst)
-echo "创建: $test_tar"
-$CMD -zvcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst 成功"
-$CMD -zvxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst 成功"
-clear_files
-
-test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst.aes)
-echo "创建: $test_tar"
-$CMD -k "123456" -ezvcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst.aes 成功"
-$CMD -k "123456" -ezvxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst.aes 成功"
-clear_files
-
-
-# 测试从标准输入和标准输出
-test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst.aes)
-echo "创建: $test_tar"
-$CMD -k "123456" -ezvc "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.zst.aes 成功"
-cat "$test_tar" | $CMD -k "123456" -ezx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.zst.aes 成功"
-clear_files
-
+	# 测试从标准输入和标准输出
+	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst.aes)
+	echo "创建: $test_tar"
+	$CMD -k "123456" -ezvc "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.zst.aes 成功"
+	cat "$test_tar" | $CMD -k "123456" -ezx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.zst.aes 成功"
+	clear_files
+}
 
 # 测试解压 *.tar.gz *.tar.bz2 *.tar.xz
 
@@ -128,7 +128,15 @@ split_merge(){
 	clear_files
 }
 
-split_merge
+main(){
+	tarpy
+	targz
+	tarbz2
+	tarxz
+	split_merge
+}
+
+main
 
 # 这里是结尾的清理
 # python ${CWD}/src/tar.py -k "123456" -eztvf "$test_tar" && echo "测试从 *.tar.zst.aes 查看成功"
