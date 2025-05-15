@@ -407,8 +407,8 @@ class FileSplitterMerger:
                     if outfile is None or bytes_written_current_file >= splitsize:
                         if outfile:
                             outfile.close()
-                        out_filename = f"{prefix}.{file_count}"  # 使用零填充的编号
 
+                        out_filename = output / f"{prefix}.{file_count}"  # 使用零填充的编号
                         logger.debug(f"正在创建文件 '{out_filename}'")
 
                         outfile = open(out_filename, 'wb')
@@ -493,6 +493,18 @@ class ThreadManager:
             pipe = Pipe()
         self.pipes.append(pipe)
         return pipe
+    
+    def task(self,func, *arguments, name=None, daemon=True):
+        """
+        直接添加一个任务，使用线程池。
+        - func: 任务函数
+        - args: 额外的参数
+        """
+        thread = threading.Thread(target=func, args=arguments, name=name)
+        thread.daemon = daemon
+        thread.start()
+        self.threads.append(thread)
+
 
     def add_task(self, func, input_pipe=None, output_pipe=None, *arguments, name=None, daemon=True):
         """

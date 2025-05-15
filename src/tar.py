@@ -47,22 +47,17 @@ def create(args, shafuncs):
         sys.exit(1)
 
     if args.split:
-        p = manager.add_task(util.split, p, None, args.split, args.f, name="split size")
-
-    # 最后写入到文件, 还需要处理到标准输出
-    if args.f:
-        f = open(args.f, "wb")
+        manager.task(util.split, p, args.split_prefix, args.split_size, args.split, name="split file")
     else:
-        f = sys.stdout.buffer
+        # 最后写入到文件, 还需要处理到标准输出
+        if args.f:
+            with open(args.f, "wb") as f:
+                manager.add_task(util.to_file, p, f, name="to file")
+        else:
+            manager.add_task(util.to_file, p, sys.stdout.buffer, name="to file")
     
-    manager.add_task(util.to_file, p, f, name="to file")
-
-
     manager.join_threads()
     manager.close_pipes()
-
-    if f is not sys.stdout.buffer:
-        f.close()
 
 
 def extract4file(args):
@@ -250,6 +245,7 @@ def main():
         sys.exit(0)
 
     if args.parse:
+        logger_print.setLevel(logging.INFO)
         logger_print.info(args)
         sys.exit(0)
     

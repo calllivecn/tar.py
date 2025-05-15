@@ -155,19 +155,19 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_hash.add_argument("--md5", action="store_true", help="输出文件同时计算 md5")
     parse_hash.add_argument("--sha1", action="store_true", help="输出文件同时计算 sha1")
     parse_hash.add_argument("--sha224", action="store_true", help="输出文件同时计算 sha224")
-    parse_hash.add_argument("--sha256", action="store_true", default=True, help="输出文件同时计算 default: sha256")
+    parse_hash.add_argument("--sha256", action="store_true", help="输出文件同时计算 default: sha256")
     parse_hash.add_argument("--sha384", action="store_true", help="输出文件同时计算 sha384")
     parse_hash.add_argument("--sha512", action="store_true", help="输出文件同时计算 sha512")
     parse_hash.add_argument("--blake2b", action="store_true", help="输出文件同时计算 blake2b")
-    parse_hash.add_argument("--sha-all", action="store_true", help="计算所有哈希值")
+    parse_hash.add_argument("--sha-all", action="store_true", help="计算以上所有哈希值")
 
     split_description = """
     在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
     """
     parse_split = parse.add_argument_group("切割输出文件", description=split_description)
-    parse_split.add_argument("--split", type=split_is_dir, help="切割输出文件到指定目录(default: .)")
+    parse_split.add_argument("--split", type=split_is_dir, help="切割时的输出目录 或者是 合并时的输入目录 (default: .)")
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
-    parse_split.add_argument("--split-prefix", help="指定切割文件的前缀(default: data)")
+    parse_split.add_argument("--split-prefix", default="data", help="指定切割文件的前缀(default: data)")
     # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
