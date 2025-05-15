@@ -22,7 +22,9 @@ if [ ! -d "$dir_out" ];then
     mkdir -v "$dir_out"
 fi
 
-if [ -x dist/tarpy ];then
+if type -p tarpy;then
+	CMD=$(type -p tarpy)
+elif [ -x dist/tarpy ];then
     CMD="dist/tarpy"
 else
     CMD="python ${CWD}/src/tar.py"
