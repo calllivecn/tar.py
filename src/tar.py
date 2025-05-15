@@ -131,6 +131,33 @@ def extract4stdin(args):
         manager.close_pipes()
 
 
+def extract4split(args):
+    """
+    解压分割文件
+    """
+    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza
+
+    manager = util.ThreadManager()
+    spliter = util.FileSplitterMerger()
+    p = manager.add_pipe()
+    manager.task(spliter.merge, args.split_prefix, args.split, p, name="merge to pipe")
+
+    if args.e:
+        p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
+    
+    if args.z:
+        p = manager.add_task(util.decompress, p, None, name="decompress")
+    
+    try:
+        util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
+    except tarfile.ReadError:
+        logger_print.info(f"解压: {NEWTARS} 需要指定，-z|-e 参数。")
+        sys.exit(1)
+
+    manager.join_threads()
+    manager.close_pipes()
+
+
 def extract(args):
     """
     解压：
@@ -139,22 +166,20 @@ def extract(args):
     3. 解压时输出只能是路径
     """
 
-    if args.f is None or args.O:
+    if args.split is not None:
+        extract4split(args)
+    elif args.f is None or args.O:
         extract4stdin(args)
     else:
         extract4file(args)
 
 
 def __tarlist(f, args):
-    pytar = True
     # 从文件提取
     try:
         util.tarlist(f, args.verbose)
     except tarfile.ReadError:
-        logger.warning(f"当前标准输入, 不是一个tar文件")
-        pytar = False
-    
-    if pytar:
+        logger.warning(f"当前输入, 不是一个tar文件")
         sys.exit(0)
 
 
@@ -218,10 +243,37 @@ def tarlist4file(args, suffix: str):
             sys.exit(1)
 
 
+def tarlist4split(args):
+
+    manager = util.ThreadManager()
+    spliter = util.FileSplitterMerger()
+    p = manager.add_pipe()
+
+    manager.task(spliter.merge, args.split_prefix, args.split, p, name="merge file to pipe")
+
+    if args.e:
+        p = manager.add_task(util.decrypt, p, None, args.k)
+    
+    if args.z:
+        p = manager.add_task(util.decompress, p, None, name="decompress")
+    
+    try:
+        util.pipe2tarlist(p, args.verbose)
+    except tarfile.ReadError:
+        logger_print.info(f"从标准输入解压: {NEWTARS} 需要指定，-z|-e 参数。")
+        sys.exit(1)
+
+    manager.join_threads()
+    manager.close_pipes()
+
+
 def tarlist(args):
 
+    if args.split is not None:
+        tarlist4split(args)
+
     # 如果args.f是None，需要从标准输入读取
-    if args.f is None or args.O:
+    elif args.f is None or args.O:
         tarlist4stdin(args)
     else:
         # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
@@ -250,7 +302,7 @@ def main():
         sys.exit(0)
     
 
-    if args.verbose == 1:
+    if args.verbose >= 1:
         logger_print.setLevel(logging.INFO)
 
     if args.debug == 1:

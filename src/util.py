@@ -432,8 +432,6 @@ class FileSplitterMerger:
     def merge(self, prefix: str, input: Path, output: io.BufferedWriter):
         """将具有指定前缀的多个文件合并为一个文件。"""
 
-        out_stream = output
-
         try:
             file_generator = self.__file_generator(prefix)
 
@@ -443,20 +441,20 @@ class FileSplitterMerger:
                 file = Path(input) / filename
 
                 if not file.exists():
-                    logger_print.info(f"{file}: 文件不存在，合并到此为止。")
+                    logger.debug(f"{file}: 文件不存在，合并到此为止。")
                     break
 
                 logger.info(f"正在合并文件 '{file}'")
 
                 with open(file, 'rb') as infile:
                     while chunk := infile.read(BLOCKSIZE):
-                        out_stream.write(chunk)
+                        output.write(chunk)
 
         except Exception as e:
             logger_print.info(f"debug: {e}")
 
         finally:
-            out_stream.close()
+            output.close()
 
     def __file_generator(self, prefix):
         """生成器：按后缀递增顺序生成文件名"""

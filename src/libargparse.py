@@ -150,7 +150,6 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_encrypt.add_argument("--info", type=target_exists, help="查看加密提示信息")
 
     parse_hash = parse.add_argument_group("计算输出文件的sha值")
-    # parse_hash.add_argument(dest="shafuncs", default=set(), help=argparse.SUPPRESS)
     parse_hash.add_argument("--sha-file", dest="sha_file", metavar="FILENAME", action="store", type=Path, help="哈希值输出到文件(default: stderr)")
     parse_hash.add_argument("--md5", action="store_true", help="输出文件同时计算 md5")
     parse_hash.add_argument("--sha1", action="store_true", help="输出文件同时计算 sha1")
@@ -163,11 +162,12 @@ def parse_args() -> tuple[Argument, Namespace]:
 
     split_description = """
     在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
+    会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.tza
     """
     parse_split = parse.add_argument_group("切割输出文件", description=split_description)
     parse_split.add_argument("--split", type=split_is_dir, help="切割时的输出目录 或者是 合并时的输入目录 (default: .)")
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
-    parse_split.add_argument("--split-prefix", default="data", help="指定切割文件的前缀(default: data)")
+    parse_split.add_argument("--split-prefix", default="data.tar", help="指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz, *.tza")
     # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
