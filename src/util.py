@@ -11,7 +11,6 @@ from typing import (
 
 import os
 import io
-import sys
 import tarfile
 import hashlib
 import threading
@@ -369,7 +368,6 @@ def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
         for sha in shafuncs:
             sha.update(data)
     
-    # print("怎么没输出？")
     for sha in shafuncs:
         logger_print.info(f"{sha.hexdigest()} {sha.name}")
 
@@ -383,45 +381,105 @@ def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
 # split 切割
 #################
 
-def genrate_suffix(prefix, width=2):
-    file_index = 0
-    width_current_max = int("9"*width)
-    while True:
-
-        suffix = str(file_index).zfill(width)
-        files = f"{prefix}{suffix}"
-        yield files
-
-        file_index += 1
-        if file_index > width_current_max:
-            file_index = int("9"*width + "0"*width)
-            # 数位翻倍
-            width = width<<1
-            width_current_max = int("9"*width)
+class SplitError(Exception):
+    pass
 
 
-def split(rpipe: Pipe, splitsize: int, output_dir: Path, file_prefix: Path, file_suffix: str):
-    gen_filename = genrate_suffix(file_prefix, 4)
-    filename_prefix = next(gen_filename)
-    split_ptr = 0
-    while (data := rpipe.read(BLOCKSIZE)) != b"":
-        split_ptr += len(data)
-        if (splitsize - split_ptr) > BLOCKSIZE:
-            split_ptr = 0
-            # 这里的文件名是个问题
-            filename = output_dir / file_prefix
-            with open(filename,"wb") as f:
-                f.write(data)
-            logger.debug(f"切割文件: {filename}")
-        else:
-            filename = output_dir / file_prefix / f"{file_prefix.name}.{file_suffix}"
-            with open(filename,"ab") as f:
-                f.write(data)
-            logger.debug(f"切割文件: {filename}")
+class FileSplitterMerger:
+
+    def split(self, prefix: str, splitsize: int, input: Pipe, output: Path):
+        """按指定的字节数将输入文件拆分为多个文件。"""
+        file_count = 0
+        bytes_written_current_file = 0
+        outfile = None
+
+        blocksize = min(BLOCKSIZE, splitsize)  # 动态调整 blocksize，确保不超过 bytes_per_file
+
+        try:
+            while True:
+                # 读取数据块
+                chunk = input.read(blocksize)
+                if not chunk:
+                    break  # 读取到文件末尾
+
+                while chunk:  # 确保 chunk 被完全处理
+                    # 如果当前文件未打开或已达到指定大小，则创建新文件
+                    if outfile is None or bytes_written_current_file >= splitsize:
+                        if outfile:
+                            outfile.close()
+                        out_filename = f"{prefix}.{file_count}"  # 使用零填充的编号
+
+                        logger.debug(f"正在创建文件 '{out_filename}'")
+
+                        outfile = open(out_filename, 'wb')
+                        file_count += 1
+                        bytes_written_current_file = 0
+
+                    # 写入数据到当前文件
+                    write_size = min(len(chunk), splitsize - bytes_written_current_file)
+                    outfile.write(chunk[:write_size])
+                    bytes_written_current_file += write_size
+
+                    # 如果当前块未完全写入，则将剩余部分保留到下一轮
+                    chunk = chunk[write_size:]
+
+        finally:
+            if outfile:
+                outfile.close()
+
+        return 0
+
+    def merge(self, prefix: str, input: Path, output: io.BufferedWriter):
+        """将具有指定前缀的多个文件合并为一个文件。"""
+
+        out_stream = output
+
+        try:
+            file_generator = self.__file_generator(prefix)
+
+            while True:
+                filename = next(file_generator)
+
+                file = Path(input) / filename
+
+                if not file.exists():
+                    logger_print.info(f"{file}: 文件不存在，合并到此为止。")
+                    break
+
+                logger.info(f"正在合并文件 '{file}'")
+
+                with open(file, 'rb') as infile:
+                    while chunk := infile.read(BLOCKSIZE):
+                        out_stream.write(chunk)
+
+        except Exception as e:
+            logger_print.info(f"debug: {e}")
+
+        finally:
+            out_stream.close()
+
+    def __file_generator(self, prefix):
+        """生成器：按后缀递增顺序生成文件名"""
+        index = 0
+        while True:
+            file_name = Path(f"{prefix}.{index}")
+            logger.debug(f"检查文件 '{file_name}'")
+
+            yield file_name
+            index += 1
 
 
+# def split(rpipe: Pipe, splitsize: int,  input: Path, output_dir: Path, filename_prefix: str):
+def split(rpipe: Pipe, filename_prefix: str, splitsize: int, output_dir: Path):
+    splitter = FileSplitterMerger()
+    splitter.split(filename_prefix, splitsize, rpipe, output_dir)
 
-# 怎么把每个处理器连接起来工作呢？
+
+def merge(prefix: str, input: Path, output: io.BufferedWriter):
+    merger = FileSplitterMerger()
+    merger.merge(prefix, input, output)
+
+
 class ThreadManager:
     def __init__(self):
         self.threads = []

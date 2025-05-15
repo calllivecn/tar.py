@@ -167,8 +167,8 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_split = parse.add_argument_group("切割输出文件", description=split_description)
     parse_split.add_argument("--split", type=split_is_dir, help="切割输出文件到指定目录(default: .)")
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
-    parse_split.add_argument("--split-prefix", help="指定切割文件的前缀: ")
-    parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
+    parse_split.add_argument("--split-prefix", help="指定切割文件的前缀(default: data)")
+    # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 

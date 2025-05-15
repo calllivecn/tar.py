@@ -68,7 +68,7 @@ POXIS tar 工具
   --sha-all             计算所有哈希值
 
 切割输出文件:
-  --split SPLIT         单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M)
+  --split SPLIT         单个文件最大大小(单位：B, K, M, G, T, P。 例如: --split 256M; default: 1G)
   --suffix SUFFIX       指定切割文件后缀(default: 00 开始)
 
 Author: calllivecn <calllivecn@outlook.com>, Version: 0.9.8 Repositories: https://github.com/calllivecn/tar.py
