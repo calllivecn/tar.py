@@ -259,7 +259,7 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     # hash 算计
-    shafuncs = {"sha256"}
+    shafuncs = set()
     # shafuncs = args.shafuncs # 初步尝试不行
     if args.md5:
         shafuncs |= {"md5"}
@@ -284,6 +284,9 @@ def main():
     
     if args.sha_all:
         shafuncs |= set(("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b"))
+    
+    if shafuncs == set():
+        shafuncs = {"sha256"}
     
     if args.e:
         if args.k:
