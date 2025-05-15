@@ -138,9 +138,9 @@ def extract4split(args):
     # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza
 
     manager = util.ThreadManager()
-    spliter = util.FileSplitterMerger()
+    splitter = util.FileSplitterMerger()
     p = manager.add_pipe()
-    manager.task(spliter.merge, args.split_prefix, args.split, p, name="merge to pipe")
+    manager.task(splitter.merge, args.split_prefix, args.split, p, name="merge to pipe")
 
     if args.e:
         p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
@@ -246,10 +246,9 @@ def tarlist4file(args, suffix: str):
 def tarlist4split(args):
 
     manager = util.ThreadManager()
-    spliter = util.FileSplitterMerger()
+    splitter = util.FileSplitterMerger()
     p = manager.add_pipe()
-
-    manager.task(spliter.merge, args.split_prefix, args.split, p, name="merge file to pipe")
+    manager.task(splitter.merge, args.split_prefix, args.split, p, name="merge file to pipe")
 
     if args.e:
         p = manager.add_task(util.decrypt, p, None, args.k)
@@ -288,6 +287,24 @@ def tarlist(args):
         else:
             raise tarfile.ReadError(f"未知格式文件")
 
+
+def split_sha(args, shafuncs):
+    """从切割的文件计算sha值"""
+
+    if args.split is None:
+        logger_print.info(f"需要指定split目录。")
+        sys.exit(1)
+
+    manager = util.ThreadManager()
+    splitter = util.FileSplitterMerger()
+
+    p = manager.add_pipe()
+    manager.task(splitter.merge, args.split_prefix, args.split, p, name="merge file to pipe")
+
+    manager.add_task(util.shasum, shafuncs, p, None, name="shasum")
+
+    manager.join_threads()
+    manager.close_pipes()
     
 def main():
     parse, args = parse_args()
@@ -376,8 +393,11 @@ def main():
             logger_print.info(f"不是加密文件或文件损坏")
             sys.exit(1)
 
+    elif args.split_sha:
+        split_sha(args, shafuncs)
+
     else:
-        logger_print.info("-c|-x|-t|--info 参数之一是必须的")
+        logger_print.info("-c|-x|-t|--info|--split-sha 参数之一是必须的")
         sys.exit(1)
 
 

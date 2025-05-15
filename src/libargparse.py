@@ -169,6 +169,8 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
     parse_split.add_argument("--split-prefix", default="data.tar", help="指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz, *.tza")
     # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
+    parse_split.add_argument("--split-sha", action="store_true", help="计算切割文件的sha值。(default: sha256)")
+
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 

@@ -19,7 +19,8 @@ def getlogger_print():
     stream2 = logging.StreamHandler(sys.stderr)
     stream2.setFormatter(fmt2)
     logger_print = logging.getLogger("print")
-    logger_print.setLevel(logging.WARNING)
+    # logger_print.setLevel(logging.WARNING)
+    logger_print.setLevel(logging.INFO)
     logger_print.addHandler(stream2)
     return logger_print
     
