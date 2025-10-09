@@ -26,14 +26,14 @@ class Argument(argparse.ArgumentParser):
 def compress_level(level):
     errmsg="压缩等级为：1 ~ 22"
     try:
-        l = int(level)
+        level_int = int(level)
     except Exception:
         raise argparse.ArgumentTypeError(errmsg)
     
-    if l < 1 or l > 22:
+    if level_int < 1 or level_int > 22:
         raise argparse.ArgumentTypeError(errmsg)
 
-    return l
+    return level_int
 
 
 def split_is_dir(path: str):
@@ -57,10 +57,11 @@ def split_size(unit_size):
             u = "M"
         else:
             size = int(unit_size[:-1])
-
     except Exception:
-        if u not in unit_chars:
-            raise argparse.ArgumentTypeError(f"单位不正确: {unit_chars}")
+        raise argparse.ArgumentTypeError(f"单位不正确: {unit_chars}")
+
+    if u not in unit_chars:
+        raise argparse.ArgumentTypeError(f"单位不正确: {unit_chars}")
     
     if u == "B":
         return size
@@ -89,13 +90,23 @@ Description='''\
 POXIS tar 工具 + zstd + sha计算 + split大文件分割
 
 例子:
-    %(prog)s -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
-    %(prog)s -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
-    %(prog)s -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
-    %(prog)s -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
-    %(prog)s -ecf archive.tar                # 打包 archive.tar 后同时加密。
-    %(prog)s -ezcf archive.tar.zst           # 打包 archive.tar.zst 后同时加密。
-    %(prog)s --info archive.ta               # 查看提示信息,如果有的话。
+    %(prog)s -cf archive.tar foo bar                # 把 foo 和 bar 文件打包为 archive.tar 文件。
+    %(prog)s -zcf archive.tar.zst foo bar           # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
+    %(prog)s -tvf archive.tar                       # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
+    %(prog)s -xf archive.tar                        # 解压 archive.tar 全部文件到当前目录。
+    %(prog)s -ecf archive.tar                       # 打包 archive.tar 后同时加密。
+    %(prog)s -ezcf archive.tar.zst                  # 打包 archive.tar.zst 后同时加密。
+    %(prog)s --info archive.ta                      # 查看提示信息,如果有的话。
+
+    %(prog)s -c --split archinve_dir/ foo bar       # 把 foo 和 bar 文件打包为 archinve_dir/ 目录下的切割文件。
+    %(prog)s -zvc --split archinve_dir/ foo bar     # 把 foo 和 bar 文件打包+压缩为 archinve_dir/ 目录下的切割文件。
+    %(prog)s -ezvc --split archinve_dir/ foo bar    # 把 foo 和 bar 文件打包+压缩+加密为 archinve_dir/ 目录下的切割文件。
+
+    %(prog)s -vx --split archinve_dir/              # 解压目录 archinve_dir/ 目录下的切割文件。
+    %(prog)s -zvx --split archinve_dir/             # 解压目录 archinve_dir/ 目录下的切割文件。
+    %(prog)s -ezvx --split archinve_dir/            # 解压目录 archinve_dir/ 目录下的切割文件。
+
+    %(prog)s --info archive_dir/data.tar.0          # 查看提示信息,如果有的话
 
     使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
     解压 *.tar.gz *.tar.xz *.tar.bz2 时，不要指定 -z 和 -e。
@@ -167,13 +178,13 @@ def parse_args() -> tuple[Argument, Namespace]:
 
     split_description = """
     在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
-    会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.tza
+    会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.ta, *.tza
     当没有指定--sha-file时，会输出到--split 目录下名为: sha.txt
     """
     parse_split = parse.add_argument_group("切割输出文件", description=split_description)
     parse_split.add_argument("--split", type=split_is_dir, help="切割时的输出目录 或者是 合并时的输入目录 (default: .)")
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
-    parse_split.add_argument("--split-prefix", default="data.tar", help="指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz, *.tza")
+    parse_split.add_argument("--split-prefix", default="data.tar", help="指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz, *.ta, *.tza")
     # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
     parse_split.add_argument("--split-sha", action="store_true", help="计算切割文件的sha值。(default: sha256)")
 

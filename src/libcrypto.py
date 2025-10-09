@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives.ciphers import (
 )
 
 
+from logs import logger, logger_print
 
 ENCRYPTO = 1  # 加密
 DECRYPTO = 0  # 解密
@@ -33,7 +34,6 @@ version = "v1.2.0"
 BLOCK = 1 << 20  # 1M 读取文件块大小
 
 
-from logs import logger, logger_print
 
 class PromptTooLong(Exception):
     pass

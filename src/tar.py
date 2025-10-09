@@ -49,7 +49,7 @@ def create(args, shafuncs):
         manager.add_task(util.shasum, shafuncs, sha, sha_file, name="shasum")
 
     if args.split and (args.f or args.O):
-        logger_print.info(f"--split 和 (-f 或者 -O) 不能同时使用.")
+        logger_print.info("--split 和 (-f 或者 -O) 不能同时使用.")
         sys.exit(1)
 
     f = sys.stdout.buffer
@@ -189,7 +189,7 @@ def __tarlist(f, args):
     try:
         util.tarlist(f, args.verbose)
     except tarfile.ReadError:
-        logger.warning(f"当前输入, 不是一个tar文件")
+        logger.warning("当前输入, 不是一个tar文件")
         sys.exit(0)
 
 
@@ -243,7 +243,7 @@ def tarlist4file(args, suffix: str):
             p = manager.add_task(util.decompress, p, None, name="decompress")
 
         else:
-            raise tarfile.ReadError(f"未知格式文件")
+            raise tarfile.ReadError("未知格式文件")
     
         # 处理管道
         try:
@@ -296,14 +296,14 @@ def tarlist(args):
             util.tarlist(args.f, args.verbose)
 
         else:
-            raise tarfile.ReadError(f"未知格式文件")
+            raise tarfile.ReadError("未知格式文件")
 
 
 def split_sha(args, shafuncs):
     """从切割的文件计算sha值"""
 
     if args.split is None:
-        logger_print.info(f"需要指定split目录。")
+        logger_print.info("需要指定split目录。")
         sys.exit(1)
 
     manager = util.ThreadManager()
@@ -386,7 +386,7 @@ def main():
             os.chdir(args.C)
 
         if len(args.target) == 0:
-            logger_print.info(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件", file=sys.stderr)
+            logger_print.info(f"{sys.argv[0]}: 谨慎地拒绝创建空归档文件")
             sys.exit(1)
 
         create(args, shafuncs)
@@ -401,7 +401,7 @@ def main():
         try:
             util.prompt(args.info)
         except Exception:
-            logger_print.info(f"不是加密文件或文件损坏")
+            logger_print.info("不是加密文件或文件损坏")
             sys.exit(1)
 
     elif args.split_sha:

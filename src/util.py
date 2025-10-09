@@ -19,17 +19,13 @@ from pathlib import Path
 from fnmatch import fnmatchcase
 
 
-IMPORT_ZSTD = True
-try:
-    # import zstd 这个库太简单了，不方便。改为使用 pyzstd
-    from pyzstd import (
-        CParameter,
-        # DParameter,
-        ZstdCompressor,
-        ZstdDecompressor,
-    )
-except ModuleNotFoundError:
-    IMPORT_ZSTD = False
+# import zstd 这个库太简单了，不方便。改为使用 pyzstd
+from pyzstd import (
+    CParameter,
+    # DParameter,
+    ZstdCompressor,
+    ZstdDecompressor,
+)
 
 
 import libcrypto
@@ -47,7 +43,10 @@ def cpu_physical() -> int:
     """
     原来的方法，不好跨平台。
     """
-    use, _ = divmod(os.cpu_count(), 2)
+    cpu = os.cpu_count()
+    if cpu is None:
+        cpu = 1
+    use, _ = divmod(cpu, 2)
     if use <= 1:
         return 1
     else:
@@ -120,7 +119,7 @@ class Pipefork:
         """
         fork >=2, 看着可以和pipe 功能合并。
         """
-        self.pipes: list[BinaryIO] = []
+        self.pipes: list[Pipe] = []
     
     def fork(self) -> Pipe:
         pipe: Pipe = Pipe()
@@ -128,6 +127,7 @@ class Pipefork:
         return pipe
     
     def write(self, data: bytes) -> int:
+        n = 0
         for pipe in self.pipes:
             n = pipe.write(data)
         return n
@@ -152,7 +152,7 @@ def compress(rpipe: Pipe, wpipe: Pipe, level: int, threads: int):
     op = {
         CParameter.compressionLevel: level,
         CParameter.nbWorkers: threads,
-        }
+    }
 
     Zst = ZstdCompressor(level_or_option=op)
     logger.debug(f"压缩等级: {level}, 线程数: {threads}")
@@ -208,7 +208,7 @@ def extract(readable: Path | BinaryIO | io.BufferedReader, path: Path, verbose=F
                         logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                     else:
                         logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                        order_bad_path(Path(tarinfo.name))
+                        order_bad_path(tarinfo)
 
                 if verbose:
                     logger_print.info(f"{tarinfo.name}")
@@ -225,7 +225,7 @@ def extract(readable: Path | BinaryIO | io.BufferedReader, path: Path, verbose=F
                         logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                     else:
                         logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                        order_bad_path(Path(tarinfo.name))
+                        order_bad_path(tarinfo)
 
                 if verbose:
                     logger_print.info(f"{tarinfo.name}")
@@ -318,7 +318,7 @@ def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
                     logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                 else:
                     logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                    order_bad_path(Path(tarinfo.name))
+                    order_bad_path(tarinfo)
 
             if verbose:
                 logger_print.info(f"{tarinfo.name}")
@@ -467,12 +467,16 @@ class FileSplitterMerger:
             index += 1
 
 
-def split_prefix(args):
+def split_prefix(args) -> str:
     split_prefix = args.split_prefix
 
     if args.z:
         split_prefix = "data.tz"
+
     if args.e:
+        split_prefix = "data.ta"
+
+    if args.z and args.e:
         split_prefix = "data.tza"
 
     return split_prefix
