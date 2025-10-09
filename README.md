@@ -3,19 +3,28 @@
 ## 一般用法
 
 ```shell
-
-usage: tar.py [option] [file ... or directory ...]
+usage: tarpy [option] [file ... or directory ...]
 
 POXIS tar 工具 + zstd + sha计算 + split大文件分割
 
 例子:
-    tar.py -cf archive.tar foo bar         # 把 foo 和 bar 文件打包为 archive.tar 文件。
-    tar.py -zcf archive.tar.zst foo bar    # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
-    tar.py -tvf archive.tar                # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
-    tar.py -xf archive.tar                 # 解压 archive.tar 全部文件到当前目录。
-    tar.py -ecf archive.tar                # 打包 archive.tar 后同时加密。
-    tar.py -ezcf archive.tar.zst           # 打包 archive.tar.zst 后同时加密。
-    tar.py --info archive.ta               # 查看提示信息,如果有的话。
+    tarpy -cf archive.tar foo bar                # 把 foo 和 bar 文件打包为 archive.tar 文件。
+    tarpy -zcf archive.tar.zst foo bar           # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
+    tarpy -tvf archive.tar                       # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
+    tarpy -xf archive.tar                        # 解压 archive.tar 全部文件到当前目录。
+    tarpy -ecf archive.tar                       # 打包 archive.tar 后同时加密。
+    tarpy -ezcf archive.tar.zst                  # 打包 archive.tar.zst 后同时加密。
+    tarpy --info archive.ta                      # 查看提示信息,如果有的话。
+
+    tarpy -c --split archinve_dir/ foo bar       # 把 foo 和 bar 文件打包为 archinve_dir/ 目录下的切割文件。
+    tarpy -zvc --split archinve_dir/ foo bar     # 把 foo 和 bar 文件打包+压缩为 archinve_dir/ 目录下的切割文件。
+    tarpy -ezvc --split archinve_dir/ foo bar    # 把 foo 和 bar 文件打包+压缩+加密为 archinve_dir/ 目录下的切割文件。
+
+    tarpy -vx --split archinve_dir/              # 解压目录 archinve_dir/ 目录下的切割文件。
+    tarpy -zvx --split archinve_dir/             # 解压目录 archinve_dir/ 目录下的切割文件。
+    tarpy -ezvx --split archinve_dir/            # 解压目录 archinve_dir/ 目录下的切割文件。
+
+    tarpy --info archive_dir/data.tar.0          # 查看提示信息,如果有的话
 
     使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
     解压 *.tar.gz *.tar.xz *.tar.bz2 时，不要指定 -z 和 -e。
@@ -66,7 +75,7 @@ POXIS tar 工具 + zstd + sha计算 + split大文件分割
 切割输出文件:
   
       在创建时分害会创建这里提供的目录。把文件名从-z -e这里生成。
-      会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.tza
+      会根据 -z 和 -e 选项来生成对应后缀*.tar|*.t, *.tz, *.ta, *.tza
       当没有指定--sha-file时，会输出到--split 目录下名为: sha.txt
       
 
@@ -75,7 +84,7 @@ POXIS tar 工具 + zstd + sha计算 + split大文件分割
                         单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)
   --split-prefix SPLIT_PREFIX
                         指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz,
-                        *.tza
+                        *.ta, *.tza
   --split-sha           计算切割文件的sha值。(default: sha256)
 
 Author: calllivecn <calllivecn@outlook.com>, Version: 0.9.9 Repositories: https://github.com/calllivecn/tar.py
