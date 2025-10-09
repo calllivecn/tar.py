@@ -5,7 +5,7 @@
 CWD=$(pwd -P)
 TMP=$(mktemp -d -p "$CWD")
 
-NAME="tar"
+NAME="tarpy"
 EXT=".pyz"
 
 pip install --no-compile -r requirements.txt --target "${TMP}" 
