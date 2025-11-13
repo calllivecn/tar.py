@@ -16,6 +16,9 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
+
+    - uses: actions/checkout@v4
+
     - name: 跑起来～
       run: |
         echo "安装uv"
@@ -26,17 +29,17 @@ jobs:
         echo "安装uv+启用虚拟环境"
         ls -lh
         echo "==================="
-        uv pip install -r requireuments.txt
-        uv pip install -r requireuments-build.txt
+        uv pip install -r requirements.txt
+        uv pip install -r requirements-build.txt
         pyinstaller tar.spec
         echo "==================="
         ls -lh
 
-    - name: 保存 ${{ APPNAME }}-${{ runner.os }}
+    - name: 保存 ${{ env.APPNAME }}-${{ runner.os }}
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ APPNAME }}-${{ runner.os }}
-        path: dist/${{ APPNAME}}
+        name: ${{ env.APPNAME }}-${{ runner.os }}
+        path: dist/${{ env.APPNAME}}
 
   build-windows:
     runs-on: windows-latest
@@ -52,14 +55,14 @@ jobs:
       run: |
         dir
         echo "==================="
-        pip install -U --break-system-package -r requireument.txt
-        pip install -U --break-system-package -r requireuments-build.txt
+        pip install -U --break-system-package -r requirements.txt
+        pip install -U --break-system-package -r requirements-build.txt
         pyinstaller tar-win.spec
         echo "==================="
         dir
 
-    - name: 保存 ${{ APPNAME }}-${{ runner.os }}
+    - name: 保存 ${{ env.APPNAME }}-${{ runner.os }}
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ APPNAME }}-${{ runner.os }}
-        path: dist\\${{ APPNAME }}.exe
+        name: ${{ env.APPNAME }}-${{ runner.os }}
+        path: dist\\${{ env.APPNAME }}.exe
