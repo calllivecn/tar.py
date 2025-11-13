@@ -1,0 +1,63 @@
+name: Python application
+on:
+  push:
+    branches:
+      - master
+      - ci
+
+# 在整个 workflow 中设置环境变量
+env:
+  # 自定义变量
+  APPNAME: "tarpy"
+  # 也可以引用 Contexts 或 Secrets
+  #CACHE_KEY: ${{ github.sha }}
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 跑起来～
+      run: |
+        echo "安装uv"
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        uv python install 3.12
+        uv venv build-uv-venv
+        source build-uv-venv/bin/activate
+        echo "安装uv+启用虚拟环境"
+        ls -lh
+        echo "==================="
+        uv pip install -r requireument.txt
+        pyinstaller tar.spec
+        echo "==================="
+        ls -lh
+
+    - name: 保存 ${{ APPNAME }}-${{ runner.os }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ APPNAME }}-${{ runner.os }}
+        path: dist/${{ APPNAME}}
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: 跑起来～
+      run: |
+        dir
+        echo "==================="
+        pip install -U --break-system-package -r requireument.txt
+        pyinstaller tar-win.spec
+        echo "==================="
+        dir
+
+    - name: 保存 ${{ APPNAME }}-${{ runner.os }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ APPNAME }}-${{ runner.os }}
+        path: dist\\${{ APPNAME }}.exe
