@@ -19,7 +19,6 @@ from pathlib import Path
 from fnmatch import fnmatchcase
 
 
-# import zstd 这个库太简单了，不方便。改为使用 pyzstd
 from pyzstd import (
     CParameter,
     # DParameter,
@@ -29,7 +28,10 @@ from pyzstd import (
 
 
 import libcrypto
-
+from protocols import (
+    cast,
+    ReadWrite,
+)
 
 from logs import logger, logger_print
 
@@ -49,33 +51,10 @@ def cpu_physical() -> int:
     use, _ = divmod(cpu, 2)
     if use <= 1:
         return 1
+    elif use > 8:
+        return 8
     else:
         return use
-
-    """
-    import platform
-
-    OS = platform.system().lower()
-    if OS == "windows":
-        return os.cpu_count()
-
-    elif OS == "linux":
-        # 不太行。。 改为默认使用一半核心
-        with open("/proc/cpuinfo") as f:
-            while (line := f.readline()) != "":
-                if "cpu cores" in line:
-                    count = line.strip("\n")
-                    break
-                else:
-                    # 没有 cpu cores 字段
-                    return
-
-        _, cores = count.split(":")
-        return int(cores.strip())
-
-    else:
-        return os.cpu_count()
-    """
 
 
 # tarfile.open() 需要 fileobj 需要包装一下。
@@ -87,19 +66,33 @@ class Pipe:
     """
 
     def __init__(self, pipe: bool = True):
+
+        self.pipe = pipe
+
         if pipe:
             self.r, self.w = os.pipe()
         else:
             self.q = Queue(32)
     
     def read(self, size: int) -> bytes:
-        return os.read(self.r, size)
+        if self.pipe:
+            return os.read(self.r, size)
+        else:
+            data = self.q.get()
+            return data
 
     def write(self, data: bytes) -> int:
-        return os.write(self.w, data)
+        if self.pipe:
+            return os.write(self.w, data)
+        else:
+            self.q.put(data)
+            return len(data)
     
     def close(self):
-        os.close(self.w)
+        if self.pipe:
+            os.close(self.w)
+        else:
+            self.q.put(b"")
     
     def close2(self):
         os.close(self.r)
@@ -115,14 +108,15 @@ class Pipefork:
                     \ --> ...
     
     """
-    def __init__(self):
+    def __init__(self, pipe: bool = True):
         """
         fork >=2, 看着可以和pipe 功能合并。
         """
         self.pipes: list[Pipe] = []
+        self.pipe = pipe
     
     def fork(self) -> Pipe:
-        pipe: Pipe = Pipe()
+        pipe = Pipe(self.pipe)
         self.pipes.append(pipe)
         return pipe
     
@@ -139,8 +133,9 @@ class Pipefork:
 
     def close2(self):
         pipe: Pipe
-        for pipe in self.pipes:
-            pipe.close2()
+        if self.pipe:
+            for pipe in self.pipes:
+                pipe.close2()
 
 
 ##################
@@ -196,76 +191,11 @@ def prompt(path: Path):
 ##################
 
 
-def extract(readable: Path | BinaryIO | io.BufferedReader, path: Path, verbose=False, safe_extract=False):
-    """
-    些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
-    """
-    if isinstance(readable, Path):
-        with tarfile.open(readable, mode="r:*") as tar:
-            while (tarinfo := tar.next()) is not None:
-                if ".." in tarinfo.name:
-                    if safe_extract:
-                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
-                    else:
-                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                        order_bad_path(tarinfo)
-
-                if verbose:
-                    logger_print.info(f"{tarinfo.name}")
-
-                # 安全的直接提取
-                tar.extract(tarinfo, path)
-
-    elif isinstance(readable, BinaryIO) or isinstance(readable, io.BufferedReader):
-        # 从标准输入提取
-        with tarfile.open(mode="r|*", fileobj=readable) as tar:
-            while (tarinfo := tar.next()) is not None:
-                if ".." in tarinfo.name:
-                    if safe_extract:
-                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
-                    else:
-                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                        order_bad_path(tarinfo)
-
-                if verbose:
-                    logger_print.info(f"{tarinfo.name}")
-
-                # 安全的直接提取
-                tar.extract(tarinfo, path)
-
-        # tarfile fileobj 需要自行关闭
-        readable.close()
-    
-    else:
-        raise ValueError("参数错误")
-
-
-def tarlist(readable: Path | BinaryIO | io.BufferedReader, verbose=False):
-    """
-    些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
-    """
-    if isinstance(readable, Path):
-        with tarfile.open(readable, mode="r:*") as tar:
-                tar.list(verbose)
-
-    elif isinstance(readable, BinaryIO) or isinstance(readable, io.BufferedReader):
-        # 从标准输入提取
-        with tarfile.open(mode="r|*", fileobj=readable) as tar:
-            while (tarinfo := tar.next()) is not None:
-                tar.list(verbose)
-
-        # tarfile fileobj 需要自行关闭
-        readable.close()
-    
-    else:
-        raise ValueError("参数错误")
-
-
 def order_bad_path(tarinfo: tarfile.TarInfo):
     """
     处理掉不安全 tar 成员路径(这样有可能会产生冲突而覆盖文件):
     ../../dir1/file1 --> dir1/file1
-    注意：使用 Path() 包装过的路径，只会剩下左边的"../"; 所有可以这样处理。
+    注意：使用 Path() 包装过的路径，只会剩下左边的"../"; 所以可以这样处理。
     """
     path = Path(tarinfo.name)
     cwd = Path()
@@ -276,6 +206,73 @@ def order_bad_path(tarinfo: tarfile.TarInfo):
             cwd = cwd / part
 
     tarinfo.name = str(cwd)
+
+
+
+def extract(readable: Path | ReadWrite, path: Path, verbose=False, safe_extract=False):
+    """
+    些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
+    """
+    if isinstance(readable, Path):
+        with tarfile.open(readable, mode="r:*") as tar:
+            while (tarinfo := tar.next()) is not None:
+                if ".." in tarinfo.name:
+                    if safe_extract:
+                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
+                    else:
+                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
+                        order_bad_path(tarinfo)
+
+                if verbose:
+                    logger_print.info(f"{tarinfo.name}")
+
+                # 安全的直接提取
+                tar.extract(tarinfo, path)
+
+    elif isinstance(readable, io.BufferedReader):
+        # 从标准输入提取
+        with tarfile.open(mode="r|*", fileobj=readable) as tar:
+            while (tarinfo := tar.next()) is not None:
+                if ".." in tarinfo.name:
+                    if safe_extract:
+                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
+                    else:
+                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
+                        order_bad_path(tarinfo)
+
+                if verbose:
+                    logger_print.info(f"{tarinfo.name}")
+
+                # 安全的直接提取
+                tar.extract(tarinfo, path)
+
+        # tarfile fileobj 需要自行关闭
+        readable.close()
+    
+    else:
+        raise ValueError("参数错误")
+
+
+# def tarlist(readable: Path | BinaryIO | io.BufferedReader, verbose=False):
+def tarlist(readable: Path | ReadWrite, verbose=False):
+    """
+    些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
+    """
+    if isinstance(readable, Path):
+        with tarfile.open(readable, mode="r:*") as tar:
+                tar.list(verbose)
+
+    elif isinstance(readable, BinaryIO) or isinstance(readable, io.BufferedReader):
+        # 从标准输入提取
+        with tarfile.open(mode="r|*", fileobj=readable) as tar:
+            # while (tarinfo := tar.next()) is not None:
+            tar.list(verbose)
+
+        # tarfile fileobj 需要自行关闭
+        readable.close()
+    
+    else:
+        raise ValueError("参数错误")
 
 
 def filter(tarinfo: tarfile.TarInfo, verbose=False, fs=[]):
@@ -328,6 +325,7 @@ def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
 
 
 def pipe2tarlist(pipe: Pipe, verbose=False):
+    tar: tarfile.TarFile
     with tarfile.open(mode="r|", fileobj=pipe) as tar:
         tar.list(verbose)
 

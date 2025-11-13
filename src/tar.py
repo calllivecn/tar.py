@@ -32,7 +32,7 @@ def create(args, shafuncs):
         p = manager.add_task(util.encrypt, p, None, args.k, args.prompt, name="encrypt")
 
     if len(shafuncs) > 0:
-        fork = util.Pipefork()
+        fork = util.Pipefork(False)
         p4 = fork.fork()
         sha = fork.fork()
 

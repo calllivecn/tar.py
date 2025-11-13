@@ -155,7 +155,7 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_compress = parse.add_argument_group("压缩选项", description="只使用zstd压缩方案, 但可以解压 *.tar.gz, *.tar.bz2, *.tar.xz。")
     parse_compress.add_argument("-z", action="store_true", help="使用zstd压缩(default: level=3)")
     parse_compress.add_argument("-l", dest="level", metavar="level", type=compress_level, default=3, help="指定压缩level: 1 ~ 22")
-    parse_compress.add_argument("-T", dest="threads", metavar="threads", type=int, default=util.cpu_physical(), help="默认使用全部CPU物理核心")
+    parse_compress.add_argument("-T", dest="threads", metavar="threads", type=int, default=util.cpu_physical(), help="默认使用CPU物理/2的核心数，最大8个线程。")
 
 
     parse_encrypt = parse.add_argument_group("加密", description="使用aes-256-cfb加密算法")
@@ -186,7 +186,7 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
     parse_split.add_argument("--split-prefix", default="data.tar", help="指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz, *.ta, *.tza")
     # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
-    parse_split.add_argument("--split-sha", action="store_true", help="计算切割文件的sha值。(default: sha256)")
+    parse_split.add_argument("--split-sha", action="store_true", help="计算切割文件的sha算法。(default: sha256)")
 
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)

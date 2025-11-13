@@ -4,7 +4,6 @@
 # author calllivecn <calllivecn@outlook.com>
 
 import os
-import io
 import sys
 import getpass
 import logging
@@ -22,6 +21,11 @@ from cryptography.hazmat.primitives.ciphers import (
     modes,
 )
 
+
+from protocols import (
+    cast,
+    ReadWrite,
+)
 
 from logs import logger, logger_print
 
@@ -95,7 +99,8 @@ class FileFormat:
 
         return instance
 
-    def write_to_stream(self, stream: io.BufferedWriter):
+    # def write_to_stream(self, stream: io.BufferedWriter):
+    def write_to_stream(self, stream: ReadWrite):
         """
         将文件头写入流中。
         """
@@ -109,7 +114,8 @@ class FileFormat:
         stream.write(self.prompt)
 
     @classmethod
-    def read_from_stream(cls, stream: io.BufferedReader):
+    # def read_from_stream(cls, stream: io.BufferedReader):
+    def read_from_stream(cls, stream: ReadWrite):
         """
         从流中读取文件头并返回 FileFormat 实例。
         """
@@ -170,7 +176,7 @@ def fileinfo(filename):
     try:
         with open(filename, "rb") as fp:
             # 使用 FileFormat 类解析文件头
-            header = FileFormat.read_from_stream(fp)
+            header = FileFormat.read_from_stream(cast(ReadWrite,fp))
 
         # 打印文件头信息
         logger_print.info(f"File Version: {hex(header.version)}")
@@ -181,7 +187,7 @@ def fileinfo(filename):
     except ValueError as e:
         logger.error(f"无法解析文件头：{e}")
         raise e
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         logger.error(f"文件未找到：{filename}")
         raise e
     except Exception as e:
@@ -210,7 +216,8 @@ class AESCrypto:
         """
         return sha256(salt + self.password.encode("utf-8")).digest()
 
-    def encrypt(self, in_stream: io.BufferedReader, out_stream: io.BufferedWriter, prompt=None):
+    # def encrypt(self, in_stream: io.BufferedReader, out_stream: io.BufferedWriter, prompt=None):
+    def encrypt(self, in_stream: ReadWrite, out_stream: ReadWrite, prompt=None):
         """
         加密数据流。
         """
@@ -231,7 +238,8 @@ class AESCrypto:
             out_stream.write(aes.update(data))
         out_stream.write(aes.finalize())
 
-    def decrypt(self, in_stream: io.BufferedReader, out_stream: io.BufferedWriter):
+    # def decrypt(self, in_stream: io.BufferedReader, out_stream: io.BufferedWriter):
+    def decrypt(self, in_stream: ReadWrite, out_stream: ReadWrite):
         """
         解密数据流。
         """
@@ -300,6 +308,7 @@ def main():
     else:
         password = args.k
 
+
     if args.i == "-":
         in_stream = sys.stdin.buffer
     else:
@@ -310,6 +319,8 @@ def main():
     else:
         out_stream = open(args.o, "wb")
 
+    in_stream = cast(ReadWrite, in_stream)
+    out_stream = cast(ReadWrite, out_stream)
     crypto = AESCrypto(password)
 
     # 加密

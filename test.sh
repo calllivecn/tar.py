@@ -22,13 +22,27 @@ if [ ! -d "$dir_out" ];then
     mkdir -v "$dir_out"
 fi
 
-if type -p tarpy;then
-	CMD=$(type -p tarpy)
-elif [ -x dist/tarpy ];then
-    CMD="dist/tarpy"
+if [ "$2"x = "--tarpy"x ];then
+	if type -p tarpy;then
+		CMD=$(type -p tarpy)
+	else
+		echo "没有tarpy命令"
+		exit 1
+	fi
+elif [ "$2"x = "--dist"x ];then
+	if [ -x dist/tarpy ];then
+		CMD="dist/tarpy"
+	else
+		echo "没有 dist/tarpy"
+		exit 1
+	fi
+elif [ "$2"x = "--tar.py"x ];then
+    CMD="python ${CWD}/src/tar.py"
 else
     CMD="python ${CWD}/src/tar.py"
 fi
+
+echo "使用CMD: $CMD"
 
 clear_files(){
 	rm -rf "$dir_out"
