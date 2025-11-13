@@ -26,7 +26,8 @@ jobs:
         echo "安装uv+启用虚拟环境"
         ls -lh
         echo "==================="
-        uv pip install -r requireument.txt
+        uv pip install -r requireuments.txt
+        uv pip install -r requireuments-build.txt
         pyinstaller tar.spec
         echo "==================="
         ls -lh
@@ -52,6 +53,7 @@ jobs:
         dir
         echo "==================="
         pip install -U --break-system-package -r requireument.txt
+        pip install -U --break-system-package -r requireuments-build.txt
         pyinstaller tar-win.spec
         echo "==================="
         dir
