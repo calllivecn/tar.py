@@ -52,37 +52,30 @@ def create(args, shafuncs):
         logger_print.info("--split 和 (-f 或者 -O) 不能同时使用.")
         sys.exit(1)
 
-    f = sys.stdout.buffer
+    with util.open_stream(args.f, "w") as f:
+
+        if args.split:
+            manager.task(util.split, p, util.split_prefix(args), args.split_size, args.split, name="split file")
+        else:
+            manager.add_task(util.to_file, p, f, name="to file")
     
-    if args.split:
-        manager.task(util.split, p, util.split_prefix(args), args.split_size, args.split, name="split file")
-    else:
-        # 最后写入到文件, 还需要处理到标准输出
-        if args.f:
-            f = open(args.f, "wb")
+        manager.join_threads()
+        manager.close_pipes()
 
-        manager.add_task(util.to_file, p, f, name="to file")
+
+def extract_not_split(args):
+
+    with util.open_stream(args.f, "r") as f:
+        # 解压*.tar.gz *.tar.xz *.tar.bz2
+        if not args.e and not args.z:
+            try:
+                util.extract(f, args.C, args.verbose, args.safe_extract)
+            except tarfile.ReadError:
+                logger.warning(f"{args.f}: 不是一个tar文件")
+                sys.exit(0)
     
-    manager.join_threads()
-    manager.close_pipes()
-
-    if f is not sys.stdout.buffer:
-        f.close()
-
-
-def extract4file(args):
-    # 解压*.tar.gz *.tar.xz *.tar.bz2
-    if not args.e and not args.z:
-        try:
-            util.extract(args.f, args.C, args.verbose, args.safe_extract)
-        except tarfile.ReadError:
-            logger.warning(f"{args.f}: 不是一个tar文件")
-            sys.exit(0)
-    
-    # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza
-    else:
-        with open(args.f.resolve(), "rb") as f:
-
+        # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza
+        else:
             manager = util.ThreadManager()
 
             p = manager.add_task(util.to_pipe, f, None, name="to pipe")
@@ -101,44 +94,6 @@ def extract4file(args):
 
             manager.join_threads()
             manager.close_pipes()
-            # 关闭管道
-
-
-def extract4stdin(args):
-    """
-    从标准输入解压时，如果是*.tar.zst.aes类型文件，需要指定-z 和 -e。
-    """
-    f = sys.stdin.buffer
-
-    # 解压*.tar.gz *.tar.xz *.tar.bz2
-    if not args.e and not args.z:
-        # 从标准输入提取
-        try:
-            util.extract(f, args.C, args.verbose, args.safe_extract)
-        except tarfile.ReadError:
-            logger.warning(f"{f}: 不是一个tar文件")
-            sys.exit(0)
-
-    else:
-
-        manager = util.ThreadManager()
-
-        p = manager.add_task(util.to_pipe, f, None, name="to pipe")
-
-        if args.e:
-            p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
-    
-        if args.z:
-            p = manager.add_task(util.decompress, p, None, name="decompress")
-    
-        try:
-            util.pipe2tar(p, args.C, args.verbose, args.safe_extract)
-        except tarfile.ReadError:
-            logger_print.info(f"解压: {NEWTARS} 需要指定，-z|-e 参数。")
-            sys.exit(1)
-
-        manager.join_threads()
-        manager.close_pipes()
 
 
 def extract4split(args):
@@ -178,11 +133,8 @@ def extract(args):
 
     if args.split is not None:
         extract4split(args)
-    elif args.f is None or args.O:
-        extract4stdin(args)
     else:
-        extract4file(args)
-
+        extract_not_split(args)
 
 def __tarlist(f, args):
     # 从文件提取
@@ -193,34 +145,7 @@ def __tarlist(f, args):
         sys.exit(0)
 
 
-def tarlist4stdin(args):
-    f = sys.stdin.buffer
-
-    __tarlist(f, args)
-
-    manager = util.ThreadManager()
-
-    p = manager.add_task(util.to_pipe, f, None, name="stdin to pipe")
-
-    if args.e:
-        p = manager.add_task(util.decrypt, f, None, args.k)
-    
-    if args.z:
-        p = manager.add_task(util.decompress, p, None, name="decompress")
-    
-    try:
-        util.pipe2tarlist(p, args.verbose)
-    except tarfile.ReadError:
-        logger_print.info(f"从标准输入解压: {NEWTARS} 需要指定，-z|-e 参数。")
-        sys.exit(1)
-
-    manager.join_threads()
-    manager.close_pipes()
-    # 关闭管道
-    f.close()
-
-
-def tarlist4file(args, suffix: str):
+def tarlist_not_split(args, suffix: str):
     """
     处理tar文件
     tar.zst, tar.zst.aes, tar.tz, tar.tza
@@ -230,7 +155,7 @@ def tarlist4file(args, suffix: str):
 
     manager = util.ThreadManager()
 
-    with open(args.f.resolve(), "rb") as f:
+    with util.open_stream(args.f, "r") as f:
 
         p = manager.add_task(util.to_pipe, f, None, name="tarlist4file")
 
@@ -282,15 +207,12 @@ def tarlist(args):
     if args.split is not None:
         tarlist4split(args)
 
-    # 如果args.f是None，需要从标准输入读取
-    elif args.f is None or args.O:
-        tarlist4stdin(args)
     else:
         # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
         suffixs = args.f.suffixes
         suffix = "".join(suffixs)
         if suffix in NEWTARS:
-            tarlist4file(args, suffix)
+            tarlist_not_split(args, suffix)
 
         elif suffix in TARFILE:
             util.tarlist(args.f, args.verbose)
@@ -378,7 +300,8 @@ def main():
                 if password != password2:
                     logger_print.info("password mismatches.")
                     sys.exit(2)
-        args.k = password
+
+        args.k = password.encode("utf-8")
 
     # 创建archive
     if args.c:

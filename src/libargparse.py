@@ -158,7 +158,7 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_compress.add_argument("-T", dest="threads", metavar="threads", type=int, default=util.cpu_physical(), help="默认使用CPU物理/2的核心数，最大8个线程。")
 
 
-    parse_encrypt = parse.add_argument_group("加密", description="使用aes-256-cfb加密算法")
+    parse_encrypt = parse.add_argument_group("加密", description="使用aes-256系列加密算法")
     parse_encrypt.add_argument("-e", action="store_true", help="加密")
     parse_encrypt.add_argument("-k", type=str, metavar="PASSWORK", action="store", help="指定密码 (default：启动后交互式输入)")
     # parse_encrypt.add_argument("-d", action="store_true", help="解密")

@@ -11,12 +11,15 @@ from typing import (
 
 import os
 import io
+import sys
 import tarfile
 import hashlib
 import threading
 from queue import Queue
 from pathlib import Path
+from struct import Struct
 from fnmatch import fnmatchcase
+from contextlib import contextmanager
 
 
 from pyzstd import (
@@ -138,6 +141,26 @@ class Pipefork:
                 pipe.close2()
 
 
+@contextmanager
+def open_stream(path: Path|str, mode: str):
+    """
+    通用打开流：path 为 "-" 时返回标准输入/输出的 buffer，否则打开文件。
+    只在实际打开文件时负责关闭流；标准流不关闭。
+    """
+    if path == "-" or path is None:
+        if "r" in mode:
+            yield cast(ReadWrite, sys.stdin.buffer)
+        elif "w" in mode:
+            yield cast(ReadWrite, sys.stdout.buffer)
+        else:
+            raise ValueError("unsupported mode for std stream")
+    else:
+        f = open(path, mode+"b")
+        try:
+            yield cast(ReadWrite, f)
+        finally:
+            f.close()
+
 ##################
 # compress 相关处理函数
 ##################
@@ -173,18 +196,42 @@ def decompress(rpipe: Pipe, wpipe: Pipe):
 ##################
 
 def encrypt(rpipe: Pipe, wpipe:Pipe, password, prompt):
-    aes = libcrypto.AESCrypto(password)
+    aes = libcrypto.AESGCM(password, (1<<20))
     aes.encrypt(rpipe, wpipe, prompt)
     wpipe.close()
 
 def decrypt(rpipe: Pipe, wpipe:Pipe, password):
-    aes = libcrypto.AESCrypto(password)
-    aes.decrypt(rpipe, wpipe)
+    data = rpipe.read(2)
+    if len(data) < 2:
+        logger.error("无法读取文件版本信息。或者文件版本信息错误。")
+        sys.exit(2)
+
+    file_version = Struct("!H").unpack(data)[0]
+    logger.debug(f"文件版本: {hex(file_version)}")
+    
+    if file_version == 0x0003:
+        logger.debug("使用 AES-GCM 格式进行加密/解密。")
+        aes = libcrypto.AESGCM(password, (1<<20))
+
+    elif file_version in (0x0001, 0x0002):
+        logger.debug("使用 AES-CFB 格式进行加密/解密。")
+        aes = libcrypto.AESCrypto(password)
+
+    else:
+        logger.error("不支持的文件版本。或者文件版本信息错误。")
+        sys.exit(2)
+
+    aes.decrypt(rpipe, wpipe, file_version)
     wpipe.close()
 
 # 查看加密提示信息
 def prompt(path: Path):
     libcrypto.fileinfo(path)
+
+
+# 使用Argon2id 进行密码哈希 + AESGCM256 加密。
+
+
 
 ##################
 # tar 相关处理函数
@@ -209,10 +256,9 @@ def order_bad_path(tarinfo: tarfile.TarInfo):
 
 
 
-def extract(readable: Path | ReadWrite, path: Path, verbose=False, safe_extract=False):
+def extract(readable: ReadWrite, path: Path, verbose=False, safe_extract=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
-    """
     if isinstance(readable, Path):
         with tarfile.open(readable, mode="r:*") as tar:
             while (tarinfo := tar.next()) is not None:
@@ -229,7 +275,7 @@ def extract(readable: Path | ReadWrite, path: Path, verbose=False, safe_extract=
                 # 安全的直接提取
                 tar.extract(tarinfo, path)
 
-    elif isinstance(readable, io.BufferedReader):
+    if isinstance(readable, io.BufferedReader):
         # 从标准输入提取
         with tarfile.open(mode="r|*", fileobj=readable) as tar:
             while (tarinfo := tar.next()) is not None:
@@ -251,6 +297,22 @@ def extract(readable: Path | ReadWrite, path: Path, verbose=False, safe_extract=
     
     else:
         raise ValueError("参数错误")
+    """
+    # 从标准输入提取
+    with tarfile.open(mode="r|*", fileobj=readable) as tar:
+        while (tarinfo := tar.next()) is not None:
+            if ".." in tarinfo.name:
+                if safe_extract:
+                    logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
+                else:
+                    logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
+                    order_bad_path(tarinfo)
+
+            if verbose:
+                logger_print.info(f"{tarinfo.name}")
+
+            # 安全的直接提取
+            tar.extract(tarinfo, path)
 
 
 # def tarlist(readable: Path | BinaryIO | io.BufferedReader, verbose=False):
@@ -480,7 +542,6 @@ def split_prefix(args) -> str:
     return split_prefix
 
 
-# def split(rpipe: Pipe, splitsize: int,  input: Path, output_dir: Path, filename_prefix: str):
 def split(rpipe: Pipe, filename_prefix: str, splitsize: int, output_dir: Path):
     splitter = FileSplitterMerger()
     splitter.split(filename_prefix, splitsize, rpipe, output_dir)
