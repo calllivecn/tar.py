@@ -54,7 +54,7 @@ POXIS tar 工具 + zstd + sha计算 + split大文件分割
   -T threads            默认使用CPU物理/2的核心数，最大8个线程。
 
 加密:
-  使用aes-256-cfb加密算法
+  使用aes-256系列加密算法
 
   -e                    加密
   -k PASSWORK           指定密码 (default：启动后交互式输入)
