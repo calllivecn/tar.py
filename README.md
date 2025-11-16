@@ -3,28 +3,28 @@
 ## 一般用法
 
 ```shell
-usage: tar.py [option] [file ... or directory ...]
+usage: tarpy [option] [file ... or directory ...]
 
 POXIS tar 工具 + zstd + sha计算 + split大文件分割
 
 例子:
-    tar.py -cf archive.tar foo bar                # 把 foo 和 bar 文件打包为 archive.tar 文件。
-    tar.py -zcf archive.tar.zst foo bar           # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
-    tar.py -tvf archive.tar                       # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
-    tar.py -xf archive.tar                        # 解压 archive.tar 全部文件到当前目录。
-    tar.py -ecf archive.tar                       # 打包 archive.tar 后同时加密。
-    tar.py -ezcf archive.tar.zst                  # 打包 archive.tar.zst 后同时加密。
-    tar.py --info archive.ta                      # 查看提示信息,如果有的话。
+    tarpy -cf archive.tar foo bar                # 把 foo 和 bar 文件打包为 archive.tar 文件。
+    tarpy -zcf archive.tar.zst foo bar           # 把 foo 和 bar 文件打包为 archive.tar.zst 文件。
+    tarpy -tvf archive.tar                       # 列出 archive.tar 里面的文件，-v 选项，列出详细信息。
+    tarpy -xf archive.tar                        # 解压 archive.tar 全部文件到当前目录。
+    tarpy -ecf archive.tar                       # 打包 archive.tar 后同时加密。
+    tarpy -ezcf archive.tar.zst                  # 打包 archive.tar.zst 后同时加密。
+    tarpy --info archive.ta                      # 查看提示信息,如果有的话。
 
-    tar.py -c --split archinve_dir/ foo bar       # 把 foo 和 bar 文件打包为 archinve_dir/ 目录下的切割文件。
-    tar.py -zvc --split archinve_dir/ foo bar     # 把 foo 和 bar 文件打包+压缩为 archinve_dir/ 目录下的切割文件。
-    tar.py -ezvc --split archinve_dir/ foo bar    # 把 foo 和 bar 文件打包+压缩+加密为 archinve_dir/ 目录下的切割文件。
+    tarpy -c --split archinve_dir/ foo bar       # 把 foo 和 bar 文件打包为 archinve_dir/ 目录下的切割文件。
+    tarpy -zvc --split archinve_dir/ foo bar     # 把 foo 和 bar 文件打包+压缩为 archinve_dir/ 目录下的切割文件。
+    tarpy -ezvc --split archinve_dir/ foo bar    # 把 foo 和 bar 文件打包+压缩+加密为 archinve_dir/ 目录下的切割文件。
 
-    tar.py -vx --split archinve_dir/              # 解压目录 archinve_dir/ 目录下的切割文件。
-    tar.py -zvx --split archinve_dir/             # 解压目录 archinve_dir/ 目录下的切割文件。
-    tar.py -ezvx --split archinve_dir/            # 解压目录 archinve_dir/ 目录下的切割文件。
+    tarpy -vx --split archinve_dir/              # 解压目录 archinve_dir/ 目录下的切割文件。
+    tarpy -zvx --split archinve_dir/             # 解压目录 archinve_dir/ 目录下的切割文件。
+    tarpy -ezvx --split archinve_dir/            # 解压目录 archinve_dir/ 目录下的切割文件。
 
-    tar.py --info archive_dir/data.tar.0          # 查看提示信息,如果有的话
+    tarpy --info archive_dir/data.tar.0          # 查看提示信息,如果有的话
 
     使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
     解压 *.tar.gz *.tar.xz *.tar.bz2 时，不要指定 -z 和 -e。
