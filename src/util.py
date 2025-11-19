@@ -5,7 +5,6 @@
 
 from typing import (
     Optional,
-    BinaryIO,
 )
 
 
@@ -61,7 +60,8 @@ def cpu_physical() -> int:
 
 
 # tarfile.open() 需要 fileobj 需要包装一下。
-# pipe 是两个FD 需要 关闭两次, 写关闭时: read() -> b""
+# 官道实现 pipe(os.pipe): 是两个FD 需要 关闭两次, 写关闭时: read() -> b""
+# 队列实现queue.Queue: 需要放入一个结束标志 b""
 class Pipe:
     """
     pipe: True 使用 so.pipe() 管道
@@ -165,7 +165,7 @@ def open_stream(path: Path|str, mode: str):
 # compress 相关处理函数
 ##################
 
-def compress(rpipe: Pipe, wpipe: Pipe, level: int, threads: int):
+def compress(rpipe: ReadWrite, wpipe: ReadWrite, level: int, threads: int):
 
     op = {
         CParameter.compressionLevel: level,
@@ -183,7 +183,7 @@ def compress(rpipe: Pipe, wpipe: Pipe, level: int, threads: int):
     wpipe.close()
 
 
-def decompress(rpipe: Pipe, wpipe: Pipe):
+def decompress(rpipe: ReadWrite, wpipe: ReadWrite):
     # 解压没有 nbWorkers 参数
     zst = ZstdDecompressor()
     while (zst_data := rpipe.read(BLOCKSIZE)) != b"":
@@ -195,12 +195,12 @@ def decompress(rpipe: Pipe, wpipe: Pipe):
 # crypto 相关处理函数
 ##################
 
-def encrypt(rpipe: Pipe, wpipe:Pipe, password, prompt):
-    aes = libcrypto.AESGCM(password, (1<<20))
+def encrypt(rpipe: ReadWrite, wpipe: ReadWrite, password, prompt):
+    aes = libcrypto.AESGCM(password, (1<<21))
     aes.encrypt(rpipe, wpipe, prompt)
     wpipe.close()
 
-def decrypt(rpipe: Pipe, wpipe:Pipe, password):
+def decrypt(rpipe: ReadWrite, wpipe: ReadWrite, password):
     data = rpipe.read(2)
     if len(data) < 2:
         logger.error("无法读取文件版本信息。或者文件版本信息错误。")
@@ -209,9 +209,10 @@ def decrypt(rpipe: Pipe, wpipe:Pipe, password):
     file_version = Struct("!H").unpack(data)[0]
     logger.debug(f"文件版本: {hex(file_version)}")
     
+    # 使用Argon2id 进行密码哈希 + AESGCM256 加密。
     if file_version == 0x0003:
         logger.debug("使用 AES-GCM 格式进行加密/解密。")
-        aes = libcrypto.AESGCM(password, (1<<20))
+        aes = libcrypto.AESGCM(password, (1<<21))
 
     elif file_version in (0x0001, 0x0002):
         logger.debug("使用 AES-CFB 格式进行加密/解密。")
@@ -227,9 +228,6 @@ def decrypt(rpipe: Pipe, wpipe:Pipe, password):
 # 查看加密提示信息
 def prompt(path: Path):
     libcrypto.fileinfo(path)
-
-
-# 使用Argon2id 进行密码哈希 + AESGCM256 加密。
 
 
 
@@ -258,47 +256,9 @@ def order_bad_path(tarinfo: tarfile.TarInfo):
 
 def extract(readable: ReadWrite, path: Path, verbose=False, safe_extract=False):
     """
-    些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
-    if isinstance(readable, Path):
-        with tarfile.open(readable, mode="r:*") as tar:
-            while (tarinfo := tar.next()) is not None:
-                if ".." in tarinfo.name:
-                    if safe_extract:
-                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
-                    else:
-                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                        order_bad_path(tarinfo)
-
-                if verbose:
-                    logger_print.info(f"{tarinfo.name}")
-
-                # 安全的直接提取
-                tar.extract(tarinfo, path)
-
-    if isinstance(readable, io.BufferedReader):
-        # 从标准输入提取
-        with tarfile.open(mode="r|*", fileobj=readable) as tar:
-            while (tarinfo := tar.next()) is not None:
-                if ".." in tarinfo.name:
-                    if safe_extract:
-                        logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
-                    else:
-                        logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
-                        order_bad_path(tarinfo)
-
-                if verbose:
-                    logger_print.info(f"{tarinfo.name}")
-
-                # 安全的直接提取
-                tar.extract(tarinfo, path)
-
-        # tarfile fileobj 需要自行关闭
-        readable.close()
-    
-    else:
-        raise ValueError("参数错误")
+    这里只需要处理 tar 的解压流。
     """
-    # 从标准输入提取
+    tar: tarfile.TarFile
     with tarfile.open(mode="r|*", fileobj=readable) as tar:
         while (tarinfo := tar.next()) is not None:
             if ".." in tarinfo.name:
@@ -312,7 +272,7 @@ def extract(readable: ReadWrite, path: Path, verbose=False, safe_extract=False):
                 logger_print.info(f"{tarinfo.name}")
 
             # 安全的直接提取
-            tar.extract(tarinfo, path)
+            tar.extract(tarinfo, path, filter=tarfile.data_filter)
 
 
 # def tarlist(readable: Path | BinaryIO | io.BufferedReader, verbose=False):
@@ -320,14 +280,14 @@ def tarlist(readable: Path | ReadWrite, verbose=False):
     """
     些函数只用来解压: tar, tar.gz, tar.bz2, tar.xz, 包。
     """
+    tar: tarfile.TarFile
     if isinstance(readable, Path):
         with tarfile.open(readable, mode="r:*") as tar:
                 tar.list(verbose)
 
-    elif isinstance(readable, BinaryIO) or isinstance(readable, io.BufferedReader):
+    elif hasattr(readable, "read"):
         # 从标准输入提取
         with tarfile.open(mode="r|*", fileobj=readable) as tar:
-            # while (tarinfo := tar.next()) is not None:
             tar.list(verbose)
 
         # tarfile fileobj 需要自行关闭
@@ -348,7 +308,7 @@ def filter(tarinfo: tarfile.TarInfo, verbose=False, fs=[]):
 
 
 # 创建
-def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
+def tar2pipe(paths: list[Path], pipe: ReadWrite, verbose, excludes: list = []):
     """
     处理打包路径安全:
     只使用 给出路径最右侧做为要打包的内容
@@ -359,16 +319,14 @@ def tar2pipe(paths: list[Path], pipe: Pipe, verbose, excludes: list = []):
         for path in paths:
             abspath = path.resolve()
             arcname = abspath.relative_to(abspath.parent)
-
-            # tar.add(path, arcname)
             tar.add(path, arcname, filter=lambda x: filter(x, verbose, excludes))
     
     logger.debug(f"打包完成: {paths}")
     pipe.close()
 
 
-# 提取 zst
-def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
+# 提取到路径下
+def pipe2tar(pipe: ReadWrite, path: Path, verbose=False, safe_extract=False):
     tar: tarfile.TarFile
     with tarfile.open(mode="r|", fileobj=pipe) as tar:
         while (tarinfo := tar.next()) is not None:
@@ -382,11 +340,10 @@ def pipe2tar(pipe: Pipe, path: Path, verbose=False, safe_extract=False):
             if verbose:
                 logger_print.info(f"{tarinfo.name}")
 
-            # 安全的直接提取
-            tar.extract(tarinfo, path)
+            tar.extract(tarinfo, path, filter=tarfile.data_filter)
 
 
-def pipe2tarlist(pipe: Pipe, verbose=False):
+def pipe2tarlist(pipe: ReadWrite, verbose=False):
     tar: tarfile.TarFile
     with tarfile.open(mode="r|", fileobj=pipe) as tar:
         tar.list(verbose)
@@ -396,13 +353,13 @@ def pipe2tarlist(pipe: Pipe, verbose=False):
 # pipe 2 file and pipe 2 pipe
 #################
 
-def to_file(rpipe: Pipe, fileobj: BinaryIO):
+def to_file(rpipe: ReadWrite, fileobj: ReadWrite):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
     logger.debug("to_file() 写入完成")
 
 
-def to_pipe(rpipe: Pipe, wpipe: Pipe):
+def to_pipe(rpipe: ReadWrite, wpipe: ReadWrite):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(data)
     wpipe.close()
@@ -414,7 +371,7 @@ def to_pipe(rpipe: Pipe, wpipe: Pipe):
 # hash 计算
 #################
 HASH = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "blake2b")
-def shasum(shafuncnames: set, pipe: Pipe, outfile: Optional[Path]):
+def shasum(shafuncnames: set, pipe: ReadWrite, outfile: Optional[Path]):
     logger.debug(f"计算hash: {shafuncnames}")
     shafuncs = []
     for funcname in sorted(shafuncnames):
@@ -447,7 +404,7 @@ class SplitError(Exception):
 
 class FileSplitterMerger:
 
-    def split(self, prefix: str, splitsize: int, input: Pipe, output: Path):
+    def split(self, prefix: str, splitsize: int, input: ReadWrite, output: Path):
         """按指定的字节数将输入文件拆分为多个文件。"""
         file_count = 0
         bytes_written_current_file = 0
@@ -542,7 +499,7 @@ def split_prefix(args) -> str:
     return split_prefix
 
 
-def split(rpipe: Pipe, filename_prefix: str, splitsize: int, output_dir: Path):
+def split(rpipe: ReadWrite, filename_prefix: str, splitsize: int, output_dir: Path):
     splitter = FileSplitterMerger()
     splitter.split(filename_prefix, splitsize, rpipe, output_dir)
 
@@ -566,7 +523,7 @@ class ThreadManager:
         self.pipes.append(pipe)
         return pipe
     
-    def task(self,func, *arguments, name=None, daemon=True):
+    def task(self, func, *arguments, name=None, daemon=True):
         """
         直接添加一个任务，使用线程池。
         - func: 任务函数

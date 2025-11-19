@@ -439,7 +439,7 @@ class AESGCM:
     
     def set_chunk_size(self, chunk_size: int):
         if chunk_size <= 0 or chunk_size > self.MAX_PLAINTEXT_SIZE:
-            raise ValueError(f"chunk size 必须在 1 ~ {self.MAX_PLAINTEXT_SIZE} 之间")
+            raise ValueError(f"chunk size 必须在 2 ~ {self.MAX_PLAINTEXT_SIZE} 之间")
         self.chunk_size = chunk_size
 
 

@@ -36,7 +36,7 @@ def create(args, shafuncs):
         p4 = fork.fork()
         sha = fork.fork()
 
-        # 从里把管道流分成两条
+        # 从这里把管道流分成两条
         manager.add_task(util.to_pipe, p, fork, name="to pipe")
         manager.add_pipe(fork)
         p = p4
@@ -126,7 +126,7 @@ def extract4split(args):
 def extract(args):
     """
     解压：
-    1. 从文件读取和从标准输入读取。
+    1. 从文件读取或从标准输入读取。
     2. gz, z2, xz 文件和新的zst|zst+aes。
     3. 解压时输出只能是路径
     """
@@ -321,6 +321,17 @@ def main():
         tarlist(args)
     
     elif args.info:
+        """
+        if args.split:
+            p = args.split / f"{args.split_prefix}.0"
+            if p.exists():
+                args.info = p
+            else:
+                logger_print.error(f"{p}: 文件不存在")
+                logger_print.error("或者需要指定--split-prefix参数")
+                sys.exit(1)
+        """
+
         try:
             util.prompt(args.info)
         except Exception:
