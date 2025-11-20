@@ -32,7 +32,7 @@ def create(args, shafuncs):
         p = manager.add_task(util.encrypt, p, None, args.k, args.prompt, name="encrypt")
 
     if len(shafuncs) > 0:
-        fork = util.Pipefork(False)
+        fork = util.Pipefork(manager.stop_event)
         p4 = fork.fork()
         sha = fork.fork()
 
@@ -49,7 +49,7 @@ def create(args, shafuncs):
         manager.add_task(util.shasum, shafuncs, sha, sha_file, name="shasum")
 
     if args.split and (args.f or args.O):
-        logger_print.info("--split 和 (-f 或者 -O) 不能同时使用.")
+        logger_print.info("--split 和 (-f 或者 -O) 不能同时指定.")
         sys.exit(1)
 
     with util.open_stream(args.f, "w") as f:
@@ -60,7 +60,6 @@ def create(args, shafuncs):
             manager.add_task(util.to_file, p, f, name="to file")
     
         manager.join_threads()
-        manager.close_pipes()
 
 
 def extract_not_split(args):
@@ -93,7 +92,6 @@ def extract_not_split(args):
                 sys.exit(1)
 
             manager.join_threads()
-            manager.close_pipes()
 
 
 def extract4split(args):
@@ -120,7 +118,6 @@ def extract4split(args):
         sys.exit(1)
 
     manager.join_threads()
-    manager.close_pipes()
 
 
 def extract(args):
@@ -199,7 +196,6 @@ def tarlist4split(args):
         sys.exit(1)
 
     manager.join_threads()
-    manager.close_pipes()
 
 
 def tarlist(args):
@@ -237,7 +233,6 @@ def split_sha(args, shafuncs):
     manager.add_task(util.shasum, shafuncs, p, None, name="shasum")
 
     manager.join_threads()
-    manager.close_pipes()
     
 def main():
     parse, args = parse_args()

@@ -59,27 +59,27 @@ clear_dir_out(){
 tarpy(){
 	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar)
 	echo "创建: $test_tar"
-	$CMD -vcf "$test_tar" "$dir_in" && echo "测试创建*.tar 成功"
-	$CMD -vxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar 成功"
+	$CMD -vcf "$test_tar" "$dir_in" && echo "测试创建*.tar 成功" || echo "测试创建*.tar 失败"
+	$CMD -vxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar 成功" || "测试解压*.tar 失败"
 	clear_files
 	
 	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst)
 	echo "创建: $test_tar"
-	$CMD -zvcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst 成功"
-	$CMD -zvxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst 成功"
+	$CMD -zcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst 成功" || echo "测试创建*.tar.zst 失败"
+	$CMD -zxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst 成功" || echo "测试解压*.tar.zst 失败"
 	clear_files
 	
 	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst.aes)
 	echo "创建: $test_tar"
-	$CMD -k "123456" -ezvcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst.aes 成功"
-	$CMD -k "123456" -ezvxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst.aes 成功"
+	$CMD -k "123456" -ezcf "$test_tar" "$dir_in" && echo "测试创建*.tar.zst.aes 成功" || echo "测试创建*.tar.zst.aes 失败"
+	$CMD -k "123456" -ezxf "$test_tar" -C "$dir_out" && echo "测试解压*.tar.zst.aes 成功" || echo "测试解压*.tar.zst.aes 失败" 
 	clear_files
 
 	# 测试从标准输入和标准输出
 	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.zst.aes)
 	echo "创建: $test_tar"
-	$CMD -k "123456" -ezvc "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.zst.aes 成功"
-	cat "$test_tar" | $CMD -k "123456" -ezx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.zst.aes 成功"
+	$CMD -k "123456" -ezc "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.zst.aes 成功" || echo "测试 从标准输出 创建*.tar.zst.aes 失败"
+	cat "$test_tar" | $CMD -k "123456" -ezx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.zst.aes 成功" || echo "测试 从标准输入 解压*.tar.zst.aes 失败"
 	clear_files
 }
 
@@ -89,14 +89,14 @@ tarpy(){
 targz(){
 	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.gz)
 	echo "创建: $test_tar"
-	tar -zvcf "$test_tar" "$dir_in" && echo "tar 工具 创建*.tar.gz"
+	tar -zcf "$test_tar" "$dir_in" && echo "tar 工具 创建*.tar.gz"
 	
 	echo "解压：*.tar.gz"
-	$CMD -vxf "$test_tar" -C "$dir_out"
+	$CMD -xf "$test_tar" -C "$dir_out"
 	clear_dir_out
 	
 	echo "从标准输入解压：*.tar.gz"
-	cat "$test_tar" | $CMD -vx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.gz 成功"
+	cat "$test_tar" | $CMD -x -C "$dir_out" && echo "测试 从标准输入 解压*.tar.gz 成功" || echo "测试 从标准输入 解压*.tar.gz 失败"
 	clear_dir_out
 }
 
@@ -107,11 +107,11 @@ tarbz2(){
 	tar -jcf "$test_tar" "$dir_in" && echo "tar 工具 创建*.tar.bz2"
 	
 	echo "解压：*.tar.bz2"
-	$CMD -vxf "$test_tar" -C "$dir_out"
+	$CMD -xf "$test_tar" -C "$dir_out"
 	clear_dir_out
 	
 	echo "从标准输入解压：*.tar.bz2"
-	cat "$test_tar" | $CMD -vx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.bz2 成功"
+	cat "$test_tar" | $CMD -x -C "$dir_out" && echo "测试 从标准输入 解压*.tar.bz2 成功" || echo "测试 从标准输入 解压*.tar.bz2 失败"
 	clear_dir_out
 }
 
@@ -126,20 +126,20 @@ tarxz(){
 	clear_dir_out
 	
 	echo "从标准输入解压：*.tar.xz"
-	cat "$test_tar" | $CMD -vx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.xz 成功"
+	cat "$test_tar" | $CMD -x -C "$dir_out" && echo "测试 从标准输入 解压*.tar.xz 成功" || echo "测试 从标准输入 解压*.tar.xz 失败"
 	clear_files
 }
 
 # "测试split + merge"
 split_merge(){
 	echo "测试split:"
-	$CMD -vd -ezc --sha512 --sha256 -k "123ji" --split-size 50M --split "$dir_test/split" "$dir_in"
+	$CMD -ezc --sha512 --sha256 -k "123ji" --split-size 50M --split "$dir_test/split" "$dir_in" && echo "测试 创建 *.tar.zst.aes + split 成功" || echo "测试 创建 *.tar.zst.aes + split 失败"
 	
 	echo "测试merge:"
-	$CMD -vd -ezx -k "123ji" --split "$dir_test/split" "$dir_in" -C "$dir_out"
+	$CMD -ezx -k "123ji" --split "$dir_test/split" "$dir_in" -C "$dir_out" && echo "测试 解压 *.tar.zst.aes + split 成功" || echo "测试 解压 *.tar.zst.aes + split 失败"
 	
 	echo "测试--split-sha:"
-	$CMD -vd --split-sha --split-prefix data.tza --split "$dir_test/split"
+	$CMD --split-sha --split-prefix data.tza --split "$dir_test/split" && echo "测试 从 split 目录中计算 sha 成功" || echo "测试 从 split 目录中计算 sha 失败"
 	
 	clear_files
 }

@@ -14,7 +14,7 @@ import sys
 import tarfile
 import hashlib
 import threading
-from queue import Queue
+from queue import Queue, Empty, Full
 from pathlib import Path
 from struct import Struct
 from fnmatch import fnmatchcase
@@ -60,46 +60,63 @@ def cpu_physical() -> int:
 
 
 # tarfile.open() 需要 fileobj 需要包装一下。
-# 官道实现 pipe(os.pipe): 是两个FD 需要 关闭两次, 写关闭时: read() -> b""
+# ~~官道实现 pipe(os.pipe): 是两个FD 需要 关闭两次, 写关闭时: read() -> b""~~
 # 队列实现queue.Queue: 需要放入一个结束标志 b""
 class Pipe:
     """
-    pipe: True 使用 so.pipe() 管道
-    pipe: False 时，使用队列。queue.Queue
+    ~~pipe: True 使用 so.pipe() 管道, 删除旧代码 os.pipe()的支持~~
+    pipe: False 时，使用队列。queue.Queue 写关闭时： read() -> b""~~
     """
 
-    def __init__(self, pipe: bool = True):
-
-        self.pipe = pipe
-
-        if pipe:
-            self.r, self.w = os.pipe()
-        else:
-            self.q = Queue(32)
+    def __init__(self, stop_event: threading.Event):
+        self.stop_event = stop_event
+        self.q = Queue(32)
+        self._buf = b""
     
     def read(self, size: int) -> bytes:
-        if self.pipe:
-            return os.read(self.r, size)
+
+        if size <= 0:
+            raise ValueError("不能小于1字节大小")
+
+        data = b""
+
+        if self._buf:
+            data = self._buf
+            self._buf = b""
+
         else:
-            data = self.q.get()
-            return data
+            while not self.stop_event.is_set():
+                try:
+                    data = self.q.get(timeout=0.5)
+                except Empty:
+                    logger.debug("Q.get(timeout0.5)")
+                    continue
+                
+                # 上游正常结果
+                if data == b"":
+                    break
+        
+        m = len(data)
+        if m > size:
+            self._buf = data[size:]
+            data = data[:size]
+
+        return data
 
     def write(self, data: bytes) -> int:
-        if self.pipe:
-            return os.write(self.w, data)
-        else:
-            self.q.put(data)
-            return len(data)
+        l_data = len(data)
+        while not self.stop_event.is_set():
+            try:
+                self.q.put(data, timeout=0.5)
+                return l_data
+            except Full:
+                continue
+        return 0
+
     
     def close(self):
-        if self.pipe:
-            os.close(self.w)
-        else:
-            self.q.put(b"")
+        self.q.put(b"")
     
-    def close2(self):
-        os.close(self.r)
-
 
 class Pipefork:
     r"""
@@ -111,15 +128,15 @@ class Pipefork:
                     \ --> ...
     
     """
-    def __init__(self, pipe: bool = True):
+    def __init__(self, stop_event: threading.Event):
         """
         fork >=2, 看着可以和pipe 功能合并。
         """
         self.pipes: list[Pipe] = []
-        self.pipe = pipe
+        self.stop_event = stop_event
     
     def fork(self) -> Pipe:
-        pipe = Pipe(self.pipe)
+        pipe = Pipe(self.stop_event)
         self.pipes.append(pipe)
         return pipe
     
@@ -133,12 +150,6 @@ class Pipefork:
         pipe: Pipe
         for pipe in self.pipes:
             pipe.close()
-
-    def close2(self):
-        pipe: Pipe
-        if self.pipe:
-            for pipe in self.pipes:
-                pipe.close2()
 
 
 @contextmanager
@@ -174,6 +185,7 @@ def compress(rpipe: ReadWrite, wpipe: ReadWrite, level: int, threads: int):
 
     Zst = ZstdCompressor(level_or_option=op)
     logger.debug(f"压缩等级: {level}, 线程数: {threads}")
+
     while (tar_data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(Zst.compress(tar_data))
         logger.debug(f"压缩数据大小: {len(tar_data)}")
@@ -357,6 +369,7 @@ def to_file(rpipe: ReadWrite, fileobj: ReadWrite):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
     logger.debug("to_file() 写入完成")
+    fileobj.close()
 
 
 def to_pipe(rpipe: ReadWrite, wpipe: ReadWrite):
@@ -376,7 +389,7 @@ def shasum(shafuncnames: set, pipe: ReadWrite, outfile: Optional[Path]):
     shafuncs = []
     for funcname in sorted(shafuncnames):
         if funcname in HASH:
-            shafuncs.append(getattr(hashlib, funcname)())
+            shafuncs.append(hashlib.new(funcname))
         else:
             raise ValueError(f"只支持 {HASH} 算法")
 
@@ -510,26 +523,29 @@ def merge(prefix: str, input: Path, output: io.BufferedWriter):
 
 
 class ThreadManager:
+
     def __init__(self):
-        self.threads = []
-        self.pipes = []
+        self.threads: list[threading.Thread] = []
+        self.pipes: list[Pipe] = []
+
+        self.stop_event = threading.Event()
 
     def add_pipe(self, pipe=None):
         """
         添加一个管道。如果未提供管道，则创建一个新的管道。
         """
         if pipe is None:
-            pipe = Pipe()
+            pipe = Pipe(self.stop_event)
         self.pipes.append(pipe)
         return pipe
     
     def task(self, func, *arguments, name=None, daemon=True):
         """
-        直接添加一个任务，使用线程池。
+        直接添加一个任务，使用线程。
         - func: 任务函数
         - args: 额外的参数
         """
-        thread = threading.Thread(target=func, args=arguments, name=name)
+        thread = threading.Thread(target=self.func_wrapper, args=(func, *arguments), name=name)
         thread.daemon = daemon
         thread.start()
         self.threads.append(thread)
@@ -546,29 +562,28 @@ class ThreadManager:
         if output_pipe is None:
             output_pipe = self.add_pipe()
 
-        thread = threading.Thread(target=func, args=(input_pipe, output_pipe, *arguments), name=name)
+        thread = threading.Thread(target=self.func_wrapper, args=(func, input_pipe, output_pipe, *arguments), name=name)
         thread.daemon = daemon
         thread.start()
         self.threads.append(thread)
 
         return output_pipe
 
+
+    def func_wrapper(self, func, *arguments):
+        try:
+            func(*arguments)
+        except Exception as e:
+            logger.error(f"线程 {threading.current_thread().name} 出现异常: {e}")
+            self.stop_event.set()
+
     def join_threads(self):
         """
         等待所有线程完成。
         """
-        thread: threading.Thread
         for thread in self.threads:
             thread.join()
-
-    def close_pipes(self):
-        """
-        关闭所有管道。
-        """
-        pipe: Pipe
-        for pipe in self.pipes:
-            pipe.close2()
-
+    
     def run_pipeline(self, tasks):
         """
         运行一组任务，自动连接管道。

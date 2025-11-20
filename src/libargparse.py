@@ -87,7 +87,7 @@ def target_exists(filename):
 
 
 Description='''\
-POXIS tar 工具 + zstd + sha计算 + split大文件分割
+POXIS tar 工具 + zstd + AES加密 + sha计算 + split大文件分割
 
 例子:
     %(prog)s -cf archive.tar foo bar                # 把 foo 和 bar 文件打包为 archive.tar 文件。
@@ -106,9 +106,10 @@ POXIS tar 工具 + zstd + sha计算 + split大文件分割
     %(prog)s -zvx --split archinve_dir/             # 解压目录 archinve_dir/ 目录下的切割文件。
     %(prog)s -ezvx --split archinve_dir/            # 解压目录 archinve_dir/ 目录下的切割文件。
 
-    %(prog)s --info archive_dir/data.tar.0          # 查看提示信息,如果有的话
+    %(prog)s --info archive_dir/data.ta.0          # 查看提示信息,如果有的话
 
-    使用-t查看文件内容时， 如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
+    使用-t查看文件内容时:
+    如果文件后缀是(".tar.zst", ".tar.aes", ".tar.zst.aes", ".tz", ".ta", ".tza")需要指定对应的-z 或者 -e 参数。
     解压 *.tar.gz *.tar.xz *.tar.bz2 时，不要指定 -z 和 -e。
 
 '''
