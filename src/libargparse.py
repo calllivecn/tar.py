@@ -133,7 +133,7 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse.add_argument("-C", type=target_exists, default=".", help="解压输出目录(default: .)")
 
     # 从标准输入读取 或者输出到标准输出
-    parse.add_argument("-O", action="store_true", default=False, help="解压文件至标准输出")
+    parse.add_argument("-O", action="store_true", default=False, help="解压文件时输出 标准输出。创建文件时从 标准输入 读取。")
 
     group1 = parse.add_mutually_exclusive_group()
     group1.add_argument("-c", action="store_true", help="创建tar文件")
@@ -187,7 +187,7 @@ def parse_args() -> tuple[Argument, Namespace]:
     parse_split.add_argument("--split-size", type=split_size, default="1G", help="单个文件最大大小(单位：B, K, M, G, T, P。 默认值：1G)")
     parse_split.add_argument("--split-prefix", default="data.tar", help="指定切割文件的前缀(default: data.tar) 其他几种: *.tar|*.t, *.tz, *.ta, *.tza")
     # parse_split.add_argument("--suffix", default="00", help="指定切割文件后缀(default: 00 开始)" )
-    parse_split.add_argument("--split-sha", action="store_true", help="计算切割文件的sha算法。(default: sha256)")
+    parse_split.add_argument("--split-sha", action="store_true", help="计算切割文件的sha值(通过前面的sha系列指定算法)。(default: sha256)")
 
 
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)

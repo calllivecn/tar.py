@@ -9,7 +9,8 @@ def getlogger(level=logging.WARNING):
     stream = logging.StreamHandler(sys.stderr)
     stream.setFormatter(fmt)
     logger = logging.getLogger("AES")
-    logger.setLevel(level)
+    # logger.setLevel(level)
+    logger.setLevel(logging.DEBUG)
     logger.addHandler(stream)
     return logger
 

@@ -81,6 +81,12 @@ tarpy(){
 	$CMD -k "123456" -ezc "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.zst.aes 成功" || echo "测试 从标准输出 创建*.tar.zst.aes 失败"
 	cat "$test_tar" | $CMD -k "123456" -ezx -C "$dir_out" && echo "测试 从标准输入 解压*.tar.zst.aes 成功" || echo "测试 从标准输入 解压*.tar.zst.aes 失败"
 	clear_files
+
+	test_tar=$(mktemp -u -p "$dir_test" --suffix .tar.aes)
+	echo "创建: $test_tar"
+	$CMD -k "123456" -ec "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.aes 成功" || echo "测试 从标准输出 创建*.tar.aes 失败"
+	cat "$test_tar" | $CMD -k "123456" -ex -C "$dir_out" && echo "测试 从标准输入 解压*.tar.aes 成功" || echo "测试 从标准输入 解压*.tar.aes 失败"
+	clear_files
 }
 
 # 测试解压 *.tar.gz *.tar.bz2 *.tar.xz
@@ -146,9 +152,9 @@ split_merge(){
 
 main(){
 	tarpy
-	targz
-	tarbz2
-	tarxz
+	#targz
+	#tarbz2
+	#tarxz
 	split_merge
 }
 

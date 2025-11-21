@@ -19,7 +19,7 @@ from pathlib import Path
 from struct import Struct
 from fnmatch import fnmatchcase
 from contextlib import contextmanager
-
+import traceback
 
 from pyzstd import (
     CParameter,
@@ -72,11 +72,19 @@ class Pipe:
         self.stop_event = stop_event
         self.q = Queue(32)
         self._buf = b""
+
+        self._eof = False
     
     def read(self, size: int) -> bytes:
+        """
+        目前只在加密使用到指定read(size)大小读取：。
+        先简单点
+        """
+        if self._eof:
+            return b""
 
-        if size <= 0:
-            raise ValueError("不能小于1字节大小")
+        if size < 0:
+            raise ValueError("不能小于0字节大小")
 
         data = b""
 
@@ -91,19 +99,25 @@ class Pipe:
                 except Empty:
                     logger.debug("Q.get(timeout0.5)")
                     continue
-                
-                # 上游正常结果
-                if data == b"":
-                    break
+
+                break
         
         m = len(data)
         if m > size:
             self._buf = data[size:]
             data = data[:size]
-
+        
+        if data == b"":
+            logger.debug("Pipe.read() 读取到结束标志 b''")
+            self._eof = True
         return data
 
     def write(self, data: bytes) -> int:
+        logger.debug(f"{self.q.qsize()=}  Pipe.write() 写入数据大小: {len(data)}")
+        # 不写入空数据，占用q队列空间
+        if not data:
+            return 0
+
         l_data = len(data)
         while not self.stop_event.is_set():
             try:
@@ -113,10 +127,10 @@ class Pipe:
                 continue
         return 0
 
-    
+
     def close(self):
         self.q.put(b"")
-    
+
 
 class Pipefork:
     r"""
@@ -158,7 +172,7 @@ def open_stream(path: Path|str, mode: str):
     通用打开流：path 为 "-" 时返回标准输入/输出的 buffer，否则打开文件。
     只在实际打开文件时负责关闭流；标准流不关闭。
     """
-    if path == "-" or path is None:
+    if path == "-" or path == Path("-") or path is None:
         if "r" in mode:
             yield cast(ReadWrite, sys.stdin.buffer)
         elif "w" in mode:
@@ -187,8 +201,11 @@ def compress(rpipe: ReadWrite, wpipe: ReadWrite, level: int, threads: int):
     logger.debug(f"压缩等级: {level}, 线程数: {threads}")
 
     while (tar_data := rpipe.read(BLOCKSIZE)) != b"":
-        wpipe.write(Zst.compress(tar_data))
-        logger.debug(f"压缩数据大小: {len(tar_data)}")
+        # 有时候写入的数据少(或者压缩的好)，会返回空
+        zdata = Zst.compress(tar_data)
+        if zdata:
+            wpipe.write(zdata)
+
     wpipe.write(Zst.flush())
 
     logger.debug("压缩完成")
@@ -210,13 +227,13 @@ def decompress(rpipe: ReadWrite, wpipe: ReadWrite):
 def encrypt(rpipe: ReadWrite, wpipe: ReadWrite, password, prompt):
     aes = libcrypto.AESGCM(password, (1<<21))
     aes.encrypt(rpipe, wpipe, prompt)
+    logger.debug("加密完成")
     wpipe.close()
 
 def decrypt(rpipe: ReadWrite, wpipe: ReadWrite, password):
     data = rpipe.read(2)
     if len(data) < 2:
-        logger.error("无法读取文件版本信息。或者文件版本信息错误。")
-        sys.exit(2)
+        raise ValueError("无法读取文件版本信息。或者文件版本信息错误。")
 
     file_version = Struct("!H").unpack(data)[0]
     logger.debug(f"文件版本: {hex(file_version)}")
@@ -231,8 +248,7 @@ def decrypt(rpipe: ReadWrite, wpipe: ReadWrite, password):
         aes = libcrypto.AESCrypto(password)
 
     else:
-        logger.error("不支持的文件版本。或者文件版本信息错误。")
-        sys.exit(2)
+        raise ValueError("不支持的文件版本。或者文件版本信息错误。")
 
     aes.decrypt(rpipe, wpipe, file_version)
     wpipe.close()
@@ -366,7 +382,13 @@ def pipe2tarlist(pipe: ReadWrite, verbose=False):
 #################
 
 def to_file(rpipe: ReadWrite, fileobj: ReadWrite):
-    while (data := rpipe.read(BLOCKSIZE)) != b"":
+    logger_print.info(f"to_file() 开始写入文件: {rpipe=} {fileobj=}")
+    # while (data := rpipe.read(BLOCKSIZE)) != b"":
+    while True:
+        data = rpipe.read(BLOCKSIZE)
+        logger_print.info(f"写入数据大小: {len(data)}")
+        if data == b"":
+            break
         fileobj.write(data)
     logger.debug("to_file() 写入完成")
     fileobj.close()
@@ -375,8 +397,8 @@ def to_file(rpipe: ReadWrite, fileobj: ReadWrite):
 def to_pipe(rpipe: ReadWrite, wpipe: ReadWrite):
     while (data := rpipe.read(BLOCKSIZE)) != b"":
         wpipe.write(data)
-    wpipe.close()
     logger.debug("to_pipe() 写入完成")
+    wpipe.close()
 
 
 
@@ -571,9 +593,11 @@ class ThreadManager:
 
 
     def func_wrapper(self, func, *arguments):
+        logger_print.info(f"线程 {threading.current_thread().name} 启动，执行函数: {func.__name__} 参数: {arguments}")
         try:
             func(*arguments)
         except Exception as e:
+            traceback.print_exc()
             logger.error(f"线程 {threading.current_thread().name} 出现异常: {e}")
             self.stop_event.set()
 

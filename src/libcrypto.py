@@ -81,6 +81,25 @@ def open_stream(path: str, mode: str):
         finally:
             f.close()
 
+
+# 读取指定大小数据，以解析信息。
+def read_packet(in_stream: ReadWrite, size: int) -> memoryview:
+    """
+    读取指定大小的数据。
+    """
+    data = io.BytesIO()
+    while data.tell() < size:
+        chunk = in_stream.read(size - data.tell())
+        if not chunk:
+            break
+        data.write(chunk)
+    
+    if data.tell() != size:
+        raise ValueError("无法读取到指定大小的数据。")
+    
+    return data.getbuffer()
+
+
 class FileFormat:
     """
     文件格式类，支持流式数据的编码和解码。
@@ -129,12 +148,12 @@ class FileFormat:
         从流中读取文件头并返回 FileFormat 实例。
         """
         header_size = cls.HEADER_not_version.size # 减去 file_version 的 2 字节
-        header_data = stream.read(header_size)
+        header_data = read_packet(stream, header_size)
         if len(header_data) < header_size:
             raise ValueError("文件头数据不足，无法解析。")
 
         prompt_len, iv, salt = cls.HEADER_not_version.unpack(header_data)
-        prompt = stream.read(prompt_len)
+        prompt = read_packet(stream, prompt_len).tobytes()
         if len(prompt) < prompt_len:
             raise ValueError("密码提示信息数据不足，无法解析。")
 
@@ -208,12 +227,12 @@ class FileFormat0x3:
         从流中读取文件头并返回 FileFormat 实例。
         """
         header_size = cls.HEADER_not_version.size # 减去 file_version 的 2 字节
-        header_data = stream.read(header_size)
+        header_data = read_packet(stream, header_size)
         if len(header_data) < header_size:
             raise ValueError("文件头数据不足，无法解析。")
 
         prompt_len, aesgcm_chunk = cls.HEADER_not_version.unpack(header_data)
-        prompt = stream.read(prompt_len)
+        prompt = read_packet(stream, prompt_len).tobytes()
         if len(prompt) < prompt_len:
             raise ValueError("密码提示信息数据不足，无法解析。")
 
@@ -273,8 +292,9 @@ def fileinfo(filename: Path|str):
     try:
         # 读取文件头的 version 字段，决定使用哪个 FileFormat 类来解析
         with open(filename, "rb") as fp:
-            header_data = fp.read(2)  # 读取 version 字段 (2 字节)
-            if len(header_data) < 2:
+            try:
+                header_data = read_packet(cast(ReadWrite, fp), 2)  # 读取 version 字段 (2 字节)
+            except Exception:
                 raise ValueError("文件头数据不足，无法解析。")
             
             version = Struct("!H").unpack(header_data)[0]
@@ -289,7 +309,6 @@ def fileinfo(filename: Path|str):
     except FileNotFoundError as e:
         logger.error(f"文件未找到：{filename}")
         raise e
-
 
 
 class AESCrypto:
@@ -338,7 +357,7 @@ class AESCrypto:
         aes = cipher.encryptor()
 
         # 加密数据块
-        while (data := in_stream.read(BLOCK)) != b"":
+        while (data := read_packet(in_stream, BLOCK)) != b"":
             out_stream.write(aes.update(data))
         out_stream.write(aes.finalize())
 
@@ -363,7 +382,7 @@ class AESCrypto:
         aes = cipher.decryptor()
 
         # 解密数据块
-        while (data := in_stream.read(BLOCK)) != b"":
+        while (data := read_packet(in_stream, BLOCK)) != b"":
             out_stream.write(aes.update(data))
         out_stream.write(aes.finalize())
 
@@ -400,7 +419,7 @@ class AESGCMFormat:
         从流中读取文件头并返回 Format 实例。
         """
         header_size = cls.HEADER.size
-        header_data = stream.read(header_size)
+        header_data = read_packet(stream, header_size)
         if len(header_data) < header_size:
             raise ValueError("文件头数据不足，无法解析。")
 
@@ -483,6 +502,7 @@ class AESGCM:
 
         # 加密数据块
         while (data := self.__read_encrypt(in_stream)) != b"":
+            logger.debug(f"是不是最后一个块: {len(data) < self.chunk_size}  读取数据大小: {len(data)}")
 
             # 计算 nonce
             if self.next_nonce(aesgcm_header.nonce_prefix8):
@@ -552,7 +572,7 @@ class AESGCM:
 
     def __read_decrypt(self, in_stream: ReadWrite) -> bytes:
         """
-        读取一个加密块 (ciphertext + tag)。
+        读取一个加密块 (16 + ciphertext)。
         """
         chunk_tag = self.chunk_size + 16  # AES-GCM 标签大小为 16 字节
         return self.__read(in_stream, chunk_tag)
