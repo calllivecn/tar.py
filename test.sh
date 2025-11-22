@@ -152,9 +152,9 @@ split_merge(){
 
 main(){
 	tarpy
-	#targz
-	#tarbz2
-	#tarxz
+	targz
+	tarbz2
+	tarxz
 	split_merge
 }
 
