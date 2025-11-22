@@ -9,9 +9,11 @@ def getlogger(level=logging.WARNING):
     stream = logging.StreamHandler(sys.stderr)
     stream.setFormatter(fmt)
     logger = logging.getLogger("AES")
-    # logger.setLevel(level)
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(stream)
+    # 使用传入的 level，并防止重复添加 handler 和向上传播
+    logger.setLevel(level)
+    if not logger.handlers:
+        logger.addHandler(stream)
+    logger.propagate = False
     return logger
 
 
@@ -20,9 +22,10 @@ def getlogger_print():
     stream2 = logging.StreamHandler(sys.stderr)
     stream2.setFormatter(fmt2)
     logger_print = logging.getLogger("print")
-    # logger_print.setLevel(logging.WARNING)
     logger_print.setLevel(logging.INFO)
-    logger_print.addHandler(stream2)
+    if not logger_print.handlers:
+        logger_print.addHandler(stream2)
+    logger_print.propagate = False
     return logger_print
     
 

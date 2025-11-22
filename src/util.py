@@ -172,7 +172,7 @@ def open_stream(path: Path|str, mode: str):
     通用打开流：path 为 "-" 时返回标准输入/输出的 buffer，否则打开文件。
     只在实际打开文件时负责关闭流；标准流不关闭。
     """
-    if path == "-" or path == Path("-") or path is None:
+    if path == "-" or path is None:
         if "r" in mode:
             yield cast(ReadWrite, sys.stdin.buffer)
         elif "w" in mode:
