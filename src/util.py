@@ -97,7 +97,7 @@ class Pipe:
                 try:
                     data = self.q.get(timeout=0.5)
                 except Empty:
-                    logger.debug("Q.get(timeout0.5)")
+                    # logger.debug("Q.get(timeout0.5)")
                     continue
 
                 break
@@ -108,12 +108,12 @@ class Pipe:
             data = data[:size]
         
         if data == b"":
-            logger.debug("Pipe.read() 读取到结束标志 b''")
+            # logger.debug("Pipe.read() 读取到结束标志 b''")
             self._eof = True
         return data
 
     def write(self, data: bytes) -> int:
-        logger.debug(f"{self.q.qsize()=}  Pipe.write() 写入数据大小: {len(data)}")
+        # logger.debug(f"{self.q.qsize()=}  Pipe.write() 写入数据大小: {len(data)}")
         # 不写入空数据，占用q队列空间
         if not data:
             return 0
@@ -232,6 +232,10 @@ def encrypt(rpipe: ReadWrite, wpipe: ReadWrite, password, prompt):
 
 def decrypt(rpipe: ReadWrite, wpipe: ReadWrite, password):
     data = rpipe.read(2)
+
+    if len(data) == 1:
+        data += rpipe.read(1)
+
     if len(data) < 2:
         raise ValueError("无法读取文件版本信息。或者文件版本信息错误。")
 
@@ -291,9 +295,9 @@ def extract(readable: ReadWrite, path: Path, verbose=False, safe_extract=False):
         while (tarinfo := tar.next()) is not None:
             if ".." in tarinfo.name:
                 if safe_extract:
-                    logger_print.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
+                    logger.info(f"成员路径包含 `..' 不提取: {tarinfo.name}")
                 else:
-                    logger_print.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
+                    logger.info(f"成员路径包含 `..' 提取为: {tarinfo.name}")
                     order_bad_path(tarinfo)
 
             if verbose:
@@ -382,13 +386,7 @@ def pipe2tarlist(pipe: ReadWrite, verbose=False):
 #################
 
 def to_file(rpipe: ReadWrite, fileobj: ReadWrite):
-    logger_print.info(f"to_file() 开始写入文件: {rpipe=} {fileobj=}")
-    # while (data := rpipe.read(BLOCKSIZE)) != b"":
-    while True:
-        data = rpipe.read(BLOCKSIZE)
-        logger_print.info(f"写入数据大小: {len(data)}")
-        if data == b"":
-            break
+    while (data := rpipe.read(BLOCKSIZE)) != b"":
         fileobj.write(data)
     logger.debug("to_file() 写入完成")
     fileobj.close()
@@ -593,7 +591,7 @@ class ThreadManager:
 
 
     def func_wrapper(self, func, *arguments):
-        logger_print.info(f"线程 {threading.current_thread().name} 启动，执行函数: {func.__name__} 参数: {arguments}")
+        # logger_print.info(f"线程 {threading.current_thread().name} 启动，执行函数: {func.__name__} 参数: {arguments}")
         try:
             func(*arguments)
         except Exception as e:

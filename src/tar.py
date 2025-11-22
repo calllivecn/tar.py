@@ -338,9 +338,22 @@ def main():
 
     else:
         logger_print.info("-c|-x|-t|--info|--split-sha 参数之一是必须的")
-        sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
+    # 使用pyinstaller 打包之后的，logging+stderr,stdout 关闭问题
+    # --- 解决方案1 --- 没有生效, 可以还需要配合其他操作,方案2
+    # 强制刷新标准输出和标准错误
+    # 这样可以避免 Python 在解释器关闭阶段尝试刷新已关闭的流
+    try:
+        logging.shutdown()
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except ValueError:
+        # 忽略已经关闭的文件引起的错误
+        pass
+
+    # --- 解决方案2 --- ok
+    os._exit(0) # 这里是工程实践上的解决方法
 
