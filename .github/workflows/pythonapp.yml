@@ -2,7 +2,7 @@ name: Python application
 on:
   push:
     branches:
-      - master
+      #- master
       - ci
 
 # 在整个 workflow 中设置环境变量
