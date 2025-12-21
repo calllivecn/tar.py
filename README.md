@@ -88,5 +88,5 @@ POXIS tar 工具 + zstd + AES加密 + sha计算 + split大文件分割
                         *.ta, *.tza
   --split-sha           计算切割文件的sha值(通过前面的sha系列指定算法)。(default: sha256)
 
-Author: calllivecn <calllivecn@outlook.com>, Version: 0.10.0 Repositories: https://github.com/calllivecn/tar.py
+Author: calllivecn <calllivecn@outlook.com>, Version: 0.10.1 Repositories: https://github.com/calllivecn/tar.py
 ```
