@@ -2,6 +2,12 @@
 
 CWD=$(cd $(dirname $0);pwd)
 
+usage(){
+	echo "用法: $0 <输入目录> [--tarpy|--dist|--tar.py]"
+	echo "  --tarpy : 使用系统安装的 tarpy 命令"
+	echo "  --dist  : 使用 dist 目录下的 tarpy 可执行文件"
+	echo "  --tar.py: 使用 src 目录下的 tar.py 脚本 (默认)"
+}
 
 dir_in="$1"
 dir_test="$(mktemp -d --suffix .tar-test)"
@@ -10,11 +16,13 @@ dir_out="$dir_test/out"
 
 if [ ! -d "$dir_in" ];then
     echo "输入目录必须存在..."
+	usage
     exit 1
 fi
 
 if [ ! -d "$dir_test" ];then
     echo "输出目录必须存在..."
+	usage
     exit 1
 fi
 
@@ -86,6 +94,13 @@ tarpy(){
 	echo "创建: $test_tar"
 	$CMD -k "123456" -ec "$dir_in" > "$test_tar" && echo "测试 从标准输出 创建*.tar.aes 成功" || echo "测试 从标准输出 创建*.tar.aes 失败"
 	cat "$test_tar" | $CMD -k "123456" -ex -C "$dir_out" && echo "测试 从标准输入 解压*.tar.aes 成功" || echo "测试 从标准输入 解压*.tar.aes 失败"
+	clear_files
+
+	# 测试查看文件内容
+	test_tar=$(mktemp -u -p "$dir_test" --suffix .tza)
+	echo "创建: $test_tar"
+	$CMD -k "123456" -ezcf "$test_tar" "$dir_in" && echo "测试创建*.tza 成功" || echo "测试创建*.tza 失败"
+	$CMD -k "123456" -eztvf "$test_tar" && echo "测试从 *.tza 查看成功" || echo "测试从 *.tza 查看失败"
 	clear_files
 }
 

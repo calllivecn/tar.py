@@ -10,6 +10,7 @@ import sys
 import logging
 import getpass
 import tarfile
+import traceback
 
 import util
 from libargparse import parse_args
@@ -147,8 +148,10 @@ def tarlist_not_split(args, suffix: str):
     处理tar文件
     tar.zst, tar.zst.aes, tar.tz, tar.tza
     """
+    tar_zstd_aes = (".tar.zst.aes", ".tza", ".ta", ".tar.zst", ".tz")
 
-    __tarlist(args.f, args)
+    if suffix in TARFILE:
+        __tarlist(args.f, args)
 
     manager = util.ThreadManager()
 
@@ -156,22 +159,21 @@ def tarlist_not_split(args, suffix: str):
 
         p = manager.add_task(util.to_pipe, f, None, name="tarlist4file")
 
-        # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
-        if suffix in (".tar.zst.aes", ".tza", ".ta"):
-            # 需要解密
-            p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
-
-        elif suffix in (".tar.zst", ".tz"):
-            p = manager.add_task(util.decompress, p, None, name="decompress")
-
-        else:
+        if  suffix not in tar_zstd_aes:
             raise tarfile.ReadError("未知格式文件")
     
+        if suffix in (".tar.zst.aes", ".tza", ".ta"):
+            p = manager.add_task(util.decrypt, p, None, args.k, name="decrypt")
+
+        if suffix in (".tar.zst.aes", ".tza", ".ta", ".tar.zst", ".tz"):
+            p = manager.add_task(util.decompress, p, None, name="decompress")
+
         # 处理管道
         try:
             util.pipe2tarlist(p, args.verbose)
         except tarfile.ReadError:
             logger.warning(f"{args.f}: 不是一个tar文件")
+            traceback.print_exc()
             sys.exit(1)
 
 
@@ -197,6 +199,14 @@ def tarlist4split(args):
 
     manager.join_threads()
 
+def is_tar_like(suffix: str) -> bool:
+    """判断文件路径是否具有支持的 tar 类型后缀"""
+    TAR_SUFFIXES = NEWTARS + TARFILE
+    basename = suffix.lower()  # 转小写以支持大小写不敏感匹配（可选）
+    for suffix in TAR_SUFFIXES:
+        if basename.endswith(suffix):
+            return True
+    return False
 
 def tarlist(args):
 
@@ -204,14 +214,16 @@ def tarlist(args):
         tarlist4split(args)
 
     else:
-        # 解压后缀：*.tar.zst, *.tar.zst.aes, *.tz, *.tza;
         suffixs = args.f.suffixes
         suffix = "".join(suffixs)
-        if suffix in NEWTARS:
-            tarlist_not_split(args, suffix)
 
-        elif suffix in TARFILE:
-            util.tarlist(args.f, args.verbose)
+        if is_tar_like(suffix):
+
+            if suffix in NEWTARS:
+                tarlist_not_split(args, suffix)
+
+            elif suffix in TARFILE:
+                util.tarlist(args.f, args.verbose)
 
         else:
             raise tarfile.ReadError("未知格式文件")

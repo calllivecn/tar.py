@@ -217,7 +217,8 @@ def decompress(rpipe: ReadWrite, wpipe: ReadWrite):
     zst = ZstdDecompressor()
     while (zst_data := rpipe.read(BLOCKSIZE)) != b"":
         tar_data = zst.decompress(zst_data)
-        wpipe.write(tar_data)
+        if tar_data:
+            wpipe.write(tar_data)
     wpipe.close()
 
 ##################

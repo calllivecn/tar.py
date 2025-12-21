@@ -382,7 +382,8 @@ class AESCrypto:
         aes = cipher.decryptor()
 
         # 解密数据块
-        while (data := read_packet(in_stream, BLOCK)) != b"":
+        while (data := read_packet(in_stream, BLOCK)) != b"": # 在旧格式中(0x01,0x02) 需要处理最后一个块不足 BLOCK 的情况
+        # while (data := in_stream.read(BLOCK)) != b"":
             out_stream.write(aes.update(data))
         out_stream.write(aes.finalize())
 
